@@ -25,7 +25,7 @@ A real-time web dashboard for monitoring FlashForge AD5X and AD5M 3D printers on
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/YOUR_USERNAME/flashforge-monitor.git
+   git clone https://github.com/Max_Dockbr/flashforge-monitor.git
    cd flashforge-monitor
    ```
 

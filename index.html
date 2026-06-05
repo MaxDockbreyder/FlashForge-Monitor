@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlashForge Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0c0e14;
+    --surface:   #13161f;
+    --card:      #181c28;
+    --border:    #242840;
+    --accent:    #4f8aff;
+    --accent2:   #ff6b35;
+    --green:     #22d17a;
+    --yellow:    #ffc93c;
+    --red:       #ff4c6a;
+    --muted:     #5a607a;
+    --text:      #e8ecf8;
+    --subtext:   #8890aa;
+    --mono:      'Space Mono', monospace;
+    --sans:      'DM Sans', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.35;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative; z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 2.5rem; padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo { display: flex; align-items: center; gap: 0.75rem; }
+  .logo-icon {
+    width: 42px; height: 42px;
+    background: linear-gradient(135deg, var(--accent), #7b5ea7);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem;
+  }
+  .logo-text h1 { font-family: var(--mono); font-size: 1.1rem; letter-spacing: 0.05em; }
+  .logo-text p  { font-size: 0.75rem; color: var(--muted); font-family: var(--mono); }
+
+  .header-right { display: flex; align-items: center; gap: 1rem; }
+  .refresh-btn {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); font-family: var(--mono); font-size: 0.75rem;
+    padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer;
+    display: flex; align-items: center; gap: 0.5rem;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .refresh-btn:hover { border-color: var(--accent); background: #1a1f30; }
+  .refresh-btn.loading .icon { animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .auto-badge {
+    font-family: var(--mono); font-size: 0.7rem; color: var(--muted);
+    padding: 0.3rem 0.7rem; border: 1px solid var(--border); border-radius: 20px;
+  }
+  #countdown { color: var(--accent); }
+
+  /* ── Grid ── */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); gap: 1.5rem; }
+
+  /* ── Card ── */
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; overflow: hidden;
+    transition: border-color 0.3s; animation: fadeIn 0.4s ease both;
+  }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+  .card.printing { border-color: rgba(79,138,255,0.4); }
+  .card.error    { border-color: rgba(255,76,106,0.4); }
+  .card.offline  { border-color: rgba(90,96,122,0.4); }
+
+  .card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.02);
+  }
+  .printer-info { display: flex; align-items: center; gap: 0.9rem; }
+  .printer-avatar {
+    width: 44px; height: 44px; border-radius: 10px;
+    background: linear-gradient(135deg, #1e2640, #2a3055);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem; border: 1px solid var(--border); flex-shrink: 0;
+  }
+  .printer-name { font-family: var(--mono); font-size: 1rem; font-weight: 700; letter-spacing: 0.05em; }
+  .printer-ip   { font-family: var(--mono); font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+
+  .status-pill {
+    display: flex; align-items: center; gap: 0.4rem;
+    font-family: var(--mono); font-size: 0.7rem;
+    padding: 0.35rem 0.8rem; border-radius: 20px; border: 1px solid;
+    text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap;
+  }
+  .status-pill.printing { color: var(--accent); border-color: rgba(79,138,255,0.4); background: rgba(79,138,255,0.08); }
+  .status-pill.ready    { color: var(--green);  border-color: rgba(34,209,122,0.4); background: rgba(34,209,122,0.08); }
+  .status-pill.offline  { color: var(--muted);  border-color: var(--border);        background: transparent; }
+  .status-pill.error    { color: var(--red);    border-color: rgba(255,76,106,0.4); background: rgba(255,76,106,0.08); }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .status-pill.printing .status-dot { animation: pulse 1.5s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:0.5;transform:scale(0.7);} }
+
+  /* ── Thumbnail ── */
+  .thumbnail-banner {
+    position: relative; width: 100%; height: 200px;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    overflow: hidden; display: flex; align-items: center; justify-content: center;
+  }
+  .thumbnail-banner img { width: 100%; height: 100%; object-fit: contain; padding: 12px; }
+  .thumbnail-banner .no-thumb {
+    display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+    color: var(--muted); font-family: var(--mono); font-size: 0.75rem;
+  }
+  .thumbnail-banner .no-thumb-icon { font-size: 2.5rem; opacity: 0.4; }
+  .thumbnail-banner::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(to bottom, transparent 60%, rgba(24,28,40,0.85) 100%);
+    pointer-events: none;
+  }
+  .thumb-progress-bar {
+    position: absolute; bottom: 0; left: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), #7b9fff);
+    transition: width 0.8s ease; z-index: 2;
+  }
+
+  /* ── Card Body ── */
+  .card-body { padding: 1.25rem 1.5rem 1.5rem; }
+
+  .error-msg {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    background: rgba(255,76,106,0.07); border: 1px solid rgba(255,76,106,0.2);
+    border-radius: 10px; color: var(--red); font-size: 0.85rem; font-family: var(--mono);
+  }
+
+  .job-file { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1.25rem; }
+  .job-file-icon { color: var(--muted); font-size: 0.9rem; }
+  .job-file-name {
+    font-family: var(--mono); font-size: 0.82rem; color: var(--subtext);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .progress-section { margin-bottom: 1.25rem; }
+  .progress-header { display: flex; justify-content: space-between; margin-bottom: 0.6rem; }
+  .progress-label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--mono); }
+  .progress-value { font-family: var(--mono); font-size: 1.2rem; font-weight: 700; color: var(--accent); line-height: 1; }
+  .progress-track { height: 8px; background: var(--surface); border-radius: 4px; overflow: hidden; border: 1px solid var(--border); }
+  .progress-fill {
+    height: 100%; background: linear-gradient(90deg, var(--accent), #7b9fff);
+    border-radius: 4px; transition: width 0.8s cubic-bezier(0.4,0,0.2,1); position: relative;
+  }
+  .progress-fill::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%);
+    animation: shimmer 2s infinite;
+  }
+  @keyframes shimmer { from{transform:translateX(-100%);} to{transform:translateX(100%);} }
+  .layer-info { display: flex; justify-content: flex-end; margin-top: 0.5rem; font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
+
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem; }
+  .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.85rem 1rem; }
+  .stat-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--mono); margin-bottom: 0.3rem; }
+  .stat-value { font-family: var(--mono); font-size: 0.95rem; font-weight: 700; color: var(--text); }
+  .stat-value.dim { color: var(--subtext); font-size: 0.85rem; }
+
+  .temps { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  .temp-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.85rem 1rem; }
+  .temp-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--mono); margin-bottom: 0.3rem; }
+  .temp-val { font-family: var(--mono); font-size: 1.05rem; font-weight: 700; }
+  .temp-val.hot  { color: var(--accent2); }
+  .temp-val.warm { color: var(--yellow); }
+  .temp-val.cool { color: var(--subtext); }
+  .temp-target { font-size: 0.72rem; color: var(--muted); font-family: var(--mono); margin-top: 1px; }
+
+  .idle-msg {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 0.5rem; padding: 2rem; color: var(--muted); text-align: center;
+  }
+  .idle-msg .idle-icon { font-size: 2rem; }
+  .idle-msg p { font-size: 0.85rem; font-family: var(--mono); }
+
+  .skeleton {
+    background: linear-gradient(90deg, var(--surface) 25%, var(--border) 50%, var(--surface) 75%);
+    background-size: 200% 100%; animation: skeleton-shimmer 1.5s infinite; border-radius: 6px;
+  }
+  @keyframes skeleton-shimmer { from{background-position:200% 0;} to{background-position:-200% 0;} }
+
+  footer {
+    margin-top: 3rem; text-align: center;
+    font-family: var(--mono); font-size: 0.7rem; color: var(--muted);
+    border-top: 1px solid var(--border); padding-top: 1.5rem;
+  }
+
+  @media (max-width: 560px) {
+    .grid { grid-template-columns: 1fr; }
+    header { flex-direction: column; gap: 1rem; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🖨</div>
+      <div class="logo-text">
+        <h1>FLASHFORGE MONITOR</h1>
+        <p>AD5X &amp; AD5M Dashboard</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="auto-badge">Auto ⟳ <span id="countdown">30</span>s</span>
+      <button class="refresh-btn" id="refreshBtn" onclick="refresh()">
+        <span class="icon">⟳</span> Refresh
+      </button>
+    </div>
+  </header>
+
+  <div class="grid" id="grid">
+    {% for p in printers %}
+    <div class="card" id="card-{{ p.id }}">
+      <div class="card-header">
+        <div class="printer-info">
+          <div class="printer-avatar">🖨</div>
+          <div>
+            <div class="printer-name">{{ p.name }}</div>
+            <div class="printer-ip">{{ p.ip }}</div>
+          </div>
+        </div>
+        <div class="status-pill offline" id="pill-{{ p.id }}">
+          <div class="status-dot"></div>
+          <span>Loading…</span>
+        </div>
+      </div>
+      <div id="thumb-{{ p.id }}"></div>
+      <div class="card-body" id="body-{{ p.id }}">
+        <div style="display:flex;flex-direction:column;gap:0.75rem;padding:0.5rem 0">
+          <div class="skeleton" style="height:16px;width:60%"></div>
+          <div class="skeleton" style="height:8px;width:100%"></div>
+          <div class="skeleton" style="height:60px;width:100%"></div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <footer>
+    FlashForge Monitor · Last updated: <span id="lastUpdate">–</span>
+  </footer>
+
+</div>
+
+<script>
+let countdownVal = 30;
+let countdownTimer;
+
+function stateClass(state) {
+  const s = (state || '').toLowerCase();
+  if (s.includes('print') || s.includes('building')) return 'printing';
+  if (s.includes('idle') || s.includes('ready') || s.includes('finish')) return 'ready';
+  if (s.includes('error') || s.includes('fail')) return 'error';
+  return 'offline';
+}
+
+function stateLabel(state) {
+  const s = (state || '').toLowerCase();
+  if (s.includes('print') || s.includes('building')) return 'Printing';
+  if (s.includes('idle') || s.includes('ready'))     return 'Ready';
+  if (s.includes('finish'))                           return 'Finished';
+  if (s.includes('pause'))                            return 'Paused';
+  if (s.includes('error') || s.includes('fail'))     return 'Error';
+  return state || 'Offline';
+}
+
+function tempColor(val) {
+  if (!val) return 'cool';
+  if (val >= 180) return 'hot';
+  if (val >= 50)  return 'warm';
+  return 'cool';
+}
+
+function renderThumbnail(d) {
+  const el = document.getElementById('thumb-' + d.id);
+  const isPrinting = stateClass(d.state) === 'printing';
+  if (!d.online || (!isPrinting && !d.thumbnail)) { el.innerHTML = ''; return; }
+  if (d.thumbnail) {
+    el.innerHTML = `
+      <div class="thumbnail-banner">
+        <img src="${d.thumbnail}" alt="Model preview">
+        ${isPrinting ? `<div class="thumb-progress-bar" style="width:${d.progress}%"></div>` : ''}
+      </div>`;
+  } else if (isPrinting) {
+    el.innerHTML = `
+      <div class="thumbnail-banner">
+        <div class="no-thumb">
+          <div class="no-thumb-icon">🖨</div>
+          <span>No preview available</span>
+        </div>
+        <div class="thumb-progress-bar" style="width:${d.progress}%"></div>
+      </div>`;
+  } else {
+    el.innerHTML = '';
+  }
+}
+
+function renderCard(d) {
+  const card = document.getElementById('card-' + d.id);
+  const pill = document.getElementById('pill-' + d.id);
+  const body = document.getElementById('body-' + d.id);
+
+  const cls = d.error ? 'error' : (d.online ? stateClass(d.state) : 'offline');
+  card.className = 'card ' + cls;
+
+  const label = d.error ? 'Error' : (d.online ? stateLabel(d.state) : 'Offline');
+  pill.className = 'status-pill ' + cls;
+  pill.innerHTML = `<div class="status-dot"></div><span>${label}</span>`;
+
+  renderThumbnail(d);
+
+  if (!d.online || d.error) {
+    body.innerHTML = `<div class="error-msg">⚠ ${d.error || 'Printer unreachable'}</div>`;
+    return;
+  }
+
+  const isPrinting = cls === 'printing';
+
+  if (!isPrinting && !d.file) {
+    body.innerHTML = `
+      <div class="idle-msg">
+        <div class="idle-icon">✅</div>
+        <p>Ready — no active print job</p>
+      </div>` + buildTemps(d);
+    return;
+  }
+
+  let html = '';
+
+  if (d.file) {
+    html += `
+      <div class="job-file">
+        <span class="job-file-icon">📄</span>
+        <span class="job-file-name" title="${d.file}">${d.file}</span>
+      </div>`;
+  }
+
+  html += `
+    <div class="progress-section">
+      <div class="progress-header">
+        <span class="progress-label">Progress</span>
+        <span class="progress-value">${d.progress.toFixed(1)}%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" style="width:${d.progress}%"></div>
+      </div>
+      ${d.layer_current !== null && d.layer_total !== null
+        ? `<div class="layer-info">Layer ${d.layer_current} / ${d.layer_total}</div>`
+        : ''}
+    </div>`;
+
+  html += `<div class="stats">
+    <div class="stat-box">
+      <div class="stat-label">⏱ Remaining</div>
+      <div class="stat-value ${d.time_remaining ? '' : 'dim'}">${d.time_remaining || '–'}</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">⌛ Elapsed</div>
+      <div class="stat-value ${d.time_elapsed ? '' : 'dim'}">${d.time_elapsed || '–'}</div>
+    </div>
+  </div>`;
+
+  html += buildTemps(d);
+  body.innerHTML = html;
+}
+
+function buildTemps(d) {
+  if (d.temp_nozzle === null && d.temp_bed === null) return '';
+  let html = `<div class="temps">`;
+  if (d.temp_nozzle !== null) {
+    html += `
+      <div class="temp-box">
+        <div class="temp-label">🌡 Nozzle</div>
+        <div class="temp-val ${tempColor(d.temp_nozzle)}">${Math.round(d.temp_nozzle)}°C</div>
+        ${d.temp_nozzle_target !== null ? `<div class="temp-target">Target: ${Math.round(d.temp_nozzle_target)}°C</div>` : ''}
+      </div>`;
+  }
+  if (d.temp_bed !== null) {
+    html += `
+      <div class="temp-box">
+        <div class="temp-label">🔲 Bed</div>
+        <div class="temp-val ${tempColor(d.temp_bed)}">${Math.round(d.temp_bed)}°C</div>
+        ${d.temp_bed_target !== null ? `<div class="temp-target">Target: ${Math.round(d.temp_bed_target)}°C</div>` : ''}
+      </div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+async function refresh() {
+  const btn = document.getElementById('refreshBtn');
+  btn.classList.add('loading');
+  resetCountdown();
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    data.forEach(renderCard);
+    document.getElementById('lastUpdate').textContent =
+      new Date().toLocaleTimeString('en-GB');
+  } catch (e) {
+    console.error('Failed to load:', e);
+  } finally {
+    btn.classList.remove('loading');
+  }
+}
+
+function resetCountdown() {
+  clearInterval(countdownTimer);
+  countdownVal = 30;
+  document.getElementById('countdown').textContent = countdownVal;
+  countdownTimer = setInterval(() => {
+    countdownVal--;
+    document.getElementById('countdown').textContent = countdownVal;
+    if (countdownVal <= 0) refresh();
+  }, 1000);
+}
+
+refresh();
+resetCountdown();
+</script>
+</body>
+</html>

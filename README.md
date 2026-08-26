@@ -15,6 +15,8 @@ A real-time web dashboard for monitoring FlashForge AD5X and AD5M 3D printers on
 - 🟢 Printer status badge (Printing / Ready / Paused / Error / Offline)
 - 🔄 Auto-refresh every 30 seconds
 - 📱 Responsive layout for desktop and mobile
+  
+<img width="1895" height="909" alt="Screenshot 2026-08-26 144001" src="https://github.com/user-attachments/assets/ba6e5917-2d9b-4b41-b7f2-e07f5d212ae4" />
 
 ## Requirements
 

@@ -25,14 +25,16 @@ PRINTERS = [
         "name":       "AD5X",
         "ip":         "192.168.1.100",   # ← adjust IP
         "serial":     "SNXXXXXXXXXX",    # ← enter serial number
-        "check_code": "XXXX",            # ← enter check code / printer ID
+        "check_code": "XXXXXXXX",        # ← enter check code / printer ID
+        "camera_url": "http://XXXXXXXXXXXXXX:8080/?action=stream", # ← replace "X" with printer IP
     },
     {
         "id":         "ad5m",
         "name":       "AD5M",
         "ip":         "192.168.1.101",   # ← adjust IP
         "serial":     "SNXXXXXXXXXX",    # ← enter serial number
-        "check_code": "XXXX",            # ← enter check code / printer ID
+        "check_code": "XXXXXXXX",        # ← enter check code / printer ID
+        "camera_url": "http://XXXXXXXXXXXX:8080/?action=stream", # ← replace "X" with printer IP
     },
 ]
 # ──────────────────────────────────────────────────────────────────────────────
@@ -50,8 +52,8 @@ def normalize_progress(value):
         return 0.0
     f = float(value)
     if f <= 1.0:
-        return round(f * 100, 1)   # 0.07 → 7.0
-    return round(f, 1)             # 7.0 → 7.0
+        return round(f * 100, 1)
+    return round(f, 1)
 
 
 async def query_printer(cfg):
@@ -59,6 +61,7 @@ async def query_printer(cfg):
         "id":                 cfg["id"],
         "name":               cfg["name"],
         "ip":                 cfg["ip"],
+        "camera_url":         cfg.get("camera_url", None),
         "online":             False,
         "error":              None,
         "state":              "unknown",
@@ -73,14 +76,16 @@ async def query_printer(cfg):
         "temp_bed":           None,
         "temp_bed_target":    None,
         "thumbnail":          None,
-        "_raw_progress":      None,   # debug field
+        "_raw_progress":      None,
     }
 
     try:
         from flashforge import FlashForgeClient
+        from flashforge.client import FiveMClientConnectionOptions
 
+        options = FiveMClientConnectionOptions(http_port=8898, tcp_port=8899)
         async with FlashForgeClient(
-            cfg["ip"], cfg["serial"], cfg["check_code"]
+            cfg["ip"], cfg["serial"], cfg["check_code"], options=options
         ) as client:
             if not await client.initialize():
                 result["error"] = "Connection failed"
@@ -103,7 +108,6 @@ async def query_printer(cfg):
                 elapsed_sec = getattr(info, "print_duration", None)
                 result["time_elapsed"]  = seconds_to_time(elapsed_sec)
 
-                # Calculate remaining time from progress + elapsed time
                 prog_pct = result["progress"]
                 if elapsed_sec and elapsed_sec > 0 and prog_pct and prog_pct > 0:
                     remaining = (elapsed_sec / prog_pct) * (100 - prog_pct)
@@ -185,7 +189,6 @@ def api_status():
     return jsonify(list(results))
 
 
-# Debug endpoint: http://localhost:5000/api/debug
 @app.route("/api/debug")
 def api_debug():
     results = asyncio.run(all_printers())

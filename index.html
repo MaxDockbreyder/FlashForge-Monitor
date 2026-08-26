@@ -8,49 +8,41 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg:        #0c0e14;
-    --surface:   #13161f;
-    --card:      #181c28;
-    --border:    #242840;
-    --accent:    #4f8aff;
-    --accent2:   #ff6b35;
-    --green:     #22d17a;
-    --yellow:    #ffc93c;
-    --red:       #ff4c6a;
-    --muted:     #5a607a;
-    --text:      #e8ecf8;
-    --subtext:   #8890aa;
-    --mono:      'Space Mono', monospace;
-    --sans:      'DM Sans', sans-serif;
+    --bg:      #0c0e14;
+    --surface: #13161f;
+    --card:    #181c28;
+    --border:  #242840;
+    --accent:  #4f8aff;
+    --accent2: #ff6b35;
+    --green:   #22d17a;
+    --yellow:  #ffc93c;
+    --red:     #ff4c6a;
+    --muted:   #5a607a;
+    --text:    #e8ecf8;
+    --subtext: #8890aa;
+    --mono:    'Space Mono', monospace;
+    --sans:    'DM Sans', sans-serif;
   }
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    min-height: 100vh;
-    overflow-x: hidden;
+    background: var(--bg); color: var(--text);
+    font-family: var(--sans); min-height: 100vh; overflow-x: hidden;
   }
 
   body::before {
-    content: '';
-    position: fixed; inset: 0;
+    content: ''; position: fixed; inset: 0;
     background-image:
       linear-gradient(var(--border) 1px, transparent 1px),
       linear-gradient(90deg, var(--border) 1px, transparent 1px);
-    background-size: 40px 40px;
-    opacity: 0.35;
-    pointer-events: none;
-    z-index: 0;
+    background-size: 40px 40px; opacity: 0.35;
+    pointer-events: none; z-index: 0;
   }
 
   .wrapper {
     position: relative; z-index: 1;
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 2rem 1.5rem 4rem;
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem;
   }
 
   /* ── Header ── */
@@ -63,13 +55,11 @@
   .logo-icon {
     width: 42px; height: 42px;
     background: linear-gradient(135deg, var(--accent), #7b5ea7);
-    border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.3rem;
+    border-radius: 10px; display: flex; align-items: center;
+    justify-content: center; font-size: 1.3rem;
   }
   .logo-text h1 { font-family: var(--mono); font-size: 1.1rem; letter-spacing: 0.05em; }
   .logo-text p  { font-size: 0.75rem; color: var(--muted); font-family: var(--mono); }
-
   .header-right { display: flex; align-items: center; gap: 1rem; }
   .refresh-btn {
     background: var(--surface); border: 1px solid var(--border);
@@ -81,7 +71,6 @@
   .refresh-btn:hover { border-color: var(--accent); background: #1a1f30; }
   .refresh-btn.loading .icon { animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-
   .auto-badge {
     font-family: var(--mono); font-size: 0.7rem; color: var(--muted);
     padding: 0.3rem 0.7rem; border: 1px solid var(--border); border-radius: 20px;
@@ -102,6 +91,7 @@
   .card.error    { border-color: rgba(255,76,106,0.4); }
   .card.offline  { border-color: rgba(90,96,122,0.4); }
 
+  /* Card header */
   .card-header {
     display: flex; align-items: center; justify-content: space-between;
     padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border);
@@ -116,7 +106,9 @@
   }
   .printer-name { font-family: var(--mono); font-size: 1rem; font-weight: 700; letter-spacing: 0.05em; }
   .printer-ip   { font-family: var(--mono); font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+  .header-badges { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
 
+  /* Status pill */
   .status-pill {
     display: flex; align-items: center; gap: 0.4rem;
     font-family: var(--mono); font-size: 0.7rem;
@@ -129,9 +121,24 @@
   .status-pill.error    { color: var(--red);    border-color: rgba(255,76,106,0.4); background: rgba(255,76,106,0.08); }
   .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
   .status-pill.printing .status-dot { animation: pulse 1.5s ease-in-out infinite; }
-  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:0.5;transform:scale(0.7);} }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:.5;transform:scale(.7);} }
 
-  /* ── Thumbnail ── */
+  /* Camera toggle button */
+  .cam-toggle {
+    display: flex; align-items: center; gap: 0.4rem;
+    font-family: var(--mono); font-size: 0.7rem;
+    padding: 0.35rem 0.8rem; border-radius: 20px;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--subtext); cursor: pointer; white-space: nowrap;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+    user-select: none;
+  }
+  .cam-toggle:hover  { border-color: var(--accent); color: var(--accent); background: rgba(79,138,255,0.08); }
+  .cam-toggle.active { border-color: rgba(79,138,255,0.5); color: var(--accent); background: rgba(79,138,255,0.1); }
+  .cam-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); transition: background 0.2s; }
+  .cam-toggle.active .cam-dot { background: var(--accent); animation: pulse 1.5s ease-in-out infinite; }
+
+  /* Thumbnail banner */
   .thumbnail-banner {
     position: relative; width: 100%; height: 200px;
     background: var(--surface); border-bottom: 1px solid var(--border);
@@ -142,7 +149,7 @@
     display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
     color: var(--muted); font-family: var(--mono); font-size: 0.75rem;
   }
-  .thumbnail-banner .no-thumb-icon { font-size: 2.5rem; opacity: 0.4; }
+  .no-thumb-icon { font-size: 2.5rem; opacity: 0.4; }
   .thumbnail-banner::after {
     content: ''; position: absolute; inset: 0;
     background: linear-gradient(to bottom, transparent 60%, rgba(24,28,40,0.85) 100%);
@@ -154,7 +161,7 @@
     transition: width 0.8s ease; z-index: 2;
   }
 
-  /* ── Card Body ── */
+  /* Card body */
   .card-body { padding: 1.25rem 1.5rem 1.5rem; }
 
   .error-msg {
@@ -210,11 +217,60 @@
   .idle-msg .idle-icon { font-size: 2rem; }
   .idle-msg p { font-size: 0.85rem; font-family: var(--mono); }
 
+  /* ── Camera Panel ── */
+  .cam-panel {
+    overflow: hidden; max-height: 0;
+    transition: max-height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .cam-panel.open { max-height: 500px; }
+
+  .cam-divider {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0 1.5rem;
+    cursor: pointer;
+    border-top: 1px solid var(--border);
+    background: rgba(255,255,255,0.01);
+    transition: background 0.2s;
+  }
+  .cam-divider:hover { background: rgba(79,138,255,0.04); }
+  .cam-divider-line { flex: 1; height: 1px; background: var(--border); }
+  .cam-divider-label {
+    display: flex; align-items: center; gap: 0.4rem;
+    font-family: var(--mono); font-size: 0.68rem; color: var(--muted);
+    padding: 0.6rem 0; text-transform: uppercase; letter-spacing: 0.08em;
+    white-space: nowrap; user-select: none;
+  }
+  .cam-chevron { transition: transform 0.3s; font-style: normal; }
+  .cam-panel.open ~ .cam-divider .cam-chevron,
+  .cam-divider.open .cam-chevron { transform: rotate(180deg); }
+
+  .cam-stream-wrap {
+    background: #000; width: 100%;
+    aspect-ratio: 16/9; position: relative;
+    display: flex; align-items: center; justify-content: center;
+    border-top: 1px solid var(--border);
+  }
+  .cam-stream-wrap img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .cam-offline {
+    display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+    color: var(--muted); font-family: var(--mono); font-size: 0.75rem; text-align: center;
+  }
+  .cam-offline-icon { font-size: 2.5rem; opacity: 0.3; }
+  .cam-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.55rem 1rem; background: rgba(0,0,0,0.5);
+    border-top: 1px solid var(--border);
+    font-family: var(--mono); font-size: 0.68rem; color: var(--muted);
+  }
+  .cam-bar a { color: var(--accent); text-decoration: none; }
+  .cam-bar a:hover { text-decoration: underline; }
+
+  /* Skeleton */
   .skeleton {
     background: linear-gradient(90deg, var(--surface) 25%, var(--border) 50%, var(--surface) 75%);
-    background-size: 200% 100%; animation: skeleton-shimmer 1.5s infinite; border-radius: 6px;
+    background-size: 200% 100%; animation: sk 1.5s infinite; border-radius: 6px;
   }
-  @keyframes skeleton-shimmer { from{background-position:200% 0;} to{background-position:-200% 0;} }
+  @keyframes sk { from{background-position:200% 0;} to{background-position:-200% 0;} }
 
   footer {
     margin-top: 3rem; text-align: center;
@@ -250,6 +306,8 @@
   <div class="grid" id="grid">
     {% for p in printers %}
     <div class="card" id="card-{{ p.id }}">
+
+      <!-- Header -->
       <div class="card-header">
         <div class="printer-info">
           <div class="printer-avatar">🖨</div>
@@ -258,12 +316,18 @@
             <div class="printer-ip">{{ p.ip }}</div>
           </div>
         </div>
-        <div class="status-pill offline" id="pill-{{ p.id }}">
-          <div class="status-dot"></div>
-          <span>Loading…</span>
+        <div class="header-badges">
+          <div class="status-pill offline" id="pill-{{ p.id }}">
+            <div class="status-dot"></div>
+            <span>Loading…</span>
+          </div>
         </div>
       </div>
+
+      <!-- Model thumbnail -->
       <div id="thumb-{{ p.id }}"></div>
+
+      <!-- Print info body -->
       <div class="card-body" id="body-{{ p.id }}">
         <div style="display:flex;flex-direction:column;gap:0.75rem;padding:0.5rem 0">
           <div class="skeleton" style="height:16px;width:60%"></div>
@@ -271,6 +335,22 @@
           <div class="skeleton" style="height:60px;width:100%"></div>
         </div>
       </div>
+
+      {% if p.camera_url %}
+      <!-- Camera expand panel -->
+      <div class="cam-panel" id="camPanel-{{ p.id }}"></div>
+
+      <!-- Camera toggle bar (always visible) -->
+      <div class="cam-divider" id="camDivider-{{ p.id }}" onclick="toggleCamera('{{ p.id }}', '{{ p.camera_url }}', '{{ p.name }}')">
+        <div class="cam-divider-line"></div>
+        <div class="cam-divider-label">
+          📷 <span>Camera</span>
+          <i class="cam-chevron">▾</i>
+        </div>
+        <div class="cam-divider-line"></div>
+      </div>
+      {% endif %}
+
     </div>
     {% endfor %}
   </div>
@@ -284,7 +364,43 @@
 <script>
 let countdownVal = 30;
 let countdownTimer;
+const camOpen = {};
 
+// ── Camera toggle ──────────────────────────────────────────────
+function toggleCamera(id, url, name) {
+  const panel   = document.getElementById('camPanel-' + id);
+  const divider = document.getElementById('camDivider-' + id);
+
+  if (camOpen[id]) {
+    // Close
+    panel.classList.remove('open');
+    divider.classList.remove('open');
+    setTimeout(() => { panel.innerHTML = ''; }, 450);
+    camOpen[id] = false;
+  } else {
+    // Open — inject MJPEG img
+    panel.innerHTML = `
+      <div class="cam-stream-wrap">
+        <img
+          src="${url}"
+          alt="${name} camera"
+          onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="cam-offline" style="display:none">
+          <div class="cam-offline-icon">📷</div>
+          <span>Stream unavailable</span>
+        </div>
+      </div>
+      <div class="cam-bar">
+        <span>📷 ${name} — Live Feed</span>
+        <a href="${url}" target="_blank">Open fullscreen ↗</a>
+      </div>`;
+    panel.classList.add('open');
+    divider.classList.add('open');
+    camOpen[id] = true;
+  }
+}
+
+// ── State helpers ──────────────────────────────────────────────
 function stateClass(state) {
   const s = (state || '').toLowerCase();
   if (s.includes('print') || s.includes('building')) return 'printing';
@@ -303,13 +419,12 @@ function stateLabel(state) {
   return state || 'Offline';
 }
 
-function tempColor(val) {
-  if (!val) return 'cool';
-  if (val >= 180) return 'hot';
-  if (val >= 50)  return 'warm';
-  return 'cool';
+function tempColor(v) {
+  if (!v) return 'cool';
+  return v >= 180 ? 'hot' : v >= 50 ? 'warm' : 'cool';
 }
 
+// ── Thumbnail ──────────────────────────────────────────────────
 function renderThumbnail(d) {
   const el = document.getElementById('thumb-' + d.id);
   const isPrinting = stateClass(d.state) === 'printing';
@@ -320,29 +435,25 @@ function renderThumbnail(d) {
         <img src="${d.thumbnail}" alt="Model preview">
         ${isPrinting ? `<div class="thumb-progress-bar" style="width:${d.progress}%"></div>` : ''}
       </div>`;
-  } else if (isPrinting) {
+  } else {
     el.innerHTML = `
       <div class="thumbnail-banner">
-        <div class="no-thumb">
-          <div class="no-thumb-icon">🖨</div>
-          <span>No preview available</span>
-        </div>
+        <div class="no-thumb"><div class="no-thumb-icon">🖨</div><span>No preview available</span></div>
         <div class="thumb-progress-bar" style="width:${d.progress}%"></div>
       </div>`;
-  } else {
-    el.innerHTML = '';
   }
 }
 
+// ── Card render ────────────────────────────────────────────────
 function renderCard(d) {
   const card = document.getElementById('card-' + d.id);
   const pill = document.getElementById('pill-' + d.id);
   const body = document.getElementById('body-' + d.id);
 
-  const cls = d.error ? 'error' : (d.online ? stateClass(d.state) : 'offline');
-  card.className = 'card ' + cls;
-
+  const cls   = d.error ? 'error' : (d.online ? stateClass(d.state) : 'offline');
   const label = d.error ? 'Error' : (d.online ? stateLabel(d.state) : 'Offline');
+
+  card.className = 'card ' + cls;
   pill.className = 'status-pill ' + cls;
   pill.innerHTML = `<div class="status-dot"></div><span>${label}</span>`;
 
@@ -383,21 +494,19 @@ function renderCard(d) {
       <div class="progress-track">
         <div class="progress-fill" style="width:${d.progress}%"></div>
       </div>
-      ${d.layer_current !== null && d.layer_total !== null
-        ? `<div class="layer-info">Layer ${d.layer_current} / ${d.layer_total}</div>`
-        : ''}
+      ${(d.layer_current !== null && d.layer_total !== null)
+        ? `<div class="layer-info">Layer ${d.layer_current} / ${d.layer_total}</div>` : ''}
+    </div>
+    <div class="stats">
+      <div class="stat-box">
+        <div class="stat-label">⏱ Remaining</div>
+        <div class="stat-value ${d.time_remaining ? '' : 'dim'}">${d.time_remaining || '–'}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">⌛ Elapsed</div>
+        <div class="stat-value ${d.time_elapsed ? '' : 'dim'}">${d.time_elapsed || '–'}</div>
+      </div>
     </div>`;
-
-  html += `<div class="stats">
-    <div class="stat-box">
-      <div class="stat-label">⏱ Remaining</div>
-      <div class="stat-value ${d.time_remaining ? '' : 'dim'}">${d.time_remaining || '–'}</div>
-    </div>
-    <div class="stat-box">
-      <div class="stat-label">⌛ Elapsed</div>
-      <div class="stat-value ${d.time_elapsed ? '' : 'dim'}">${d.time_elapsed || '–'}</div>
-    </div>
-  </div>`;
 
   html += buildTemps(d);
   body.innerHTML = html;
@@ -405,33 +514,28 @@ function renderCard(d) {
 
 function buildTemps(d) {
   if (d.temp_nozzle === null && d.temp_bed === null) return '';
-  let html = `<div class="temps">`;
-  if (d.temp_nozzle !== null) {
-    html += `
-      <div class="temp-box">
-        <div class="temp-label">🌡 Nozzle</div>
-        <div class="temp-val ${tempColor(d.temp_nozzle)}">${Math.round(d.temp_nozzle)}°C</div>
-        ${d.temp_nozzle_target !== null ? `<div class="temp-target">Target: ${Math.round(d.temp_nozzle_target)}°C</div>` : ''}
-      </div>`;
-  }
-  if (d.temp_bed !== null) {
-    html += `
-      <div class="temp-box">
-        <div class="temp-label">🔲 Bed</div>
-        <div class="temp-val ${tempColor(d.temp_bed)}">${Math.round(d.temp_bed)}°C</div>
-        ${d.temp_bed_target !== null ? `<div class="temp-target">Target: ${Math.round(d.temp_bed_target)}°C</div>` : ''}
-      </div>`;
-  }
-  html += `</div>`;
-  return html;
+  let h = `<div class="temps">`;
+  if (d.temp_nozzle !== null) h += `
+    <div class="temp-box">
+      <div class="temp-label">🌡 Nozzle</div>
+      <div class="temp-val ${tempColor(d.temp_nozzle)}">${Math.round(d.temp_nozzle)}°C</div>
+      ${d.temp_nozzle_target !== null ? `<div class="temp-target">Target: ${Math.round(d.temp_nozzle_target)}°C</div>` : ''}
+    </div>`;
+  if (d.temp_bed !== null) h += `
+    <div class="temp-box">
+      <div class="temp-label">🔲 Bed</div>
+      <div class="temp-val ${tempColor(d.temp_bed)}">${Math.round(d.temp_bed)}°C</div>
+      ${d.temp_bed_target !== null ? `<div class="temp-target">Target: ${Math.round(d.temp_bed_target)}°C</div>` : ''}
+    </div>`;
+  return h + `</div>`;
 }
 
+// ── Data fetch ─────────────────────────────────────────────────
 async function refresh() {
-  const btn = document.getElementById('refreshBtn');
-  btn.classList.add('loading');
+  document.getElementById('refreshBtn').classList.add('loading');
   resetCountdown();
   try {
-    const res = await fetch('/api/status');
+    const res  = await fetch('/api/status');
     const data = await res.json();
     data.forEach(renderCard);
     document.getElementById('lastUpdate').textContent =
@@ -439,17 +543,16 @@ async function refresh() {
   } catch (e) {
     console.error('Failed to load:', e);
   } finally {
-    btn.classList.remove('loading');
+    document.getElementById('refreshBtn').classList.remove('loading');
   }
 }
 
 function resetCountdown() {
   clearInterval(countdownTimer);
   countdownVal = 30;
-  document.getElementById('countdown').textContent = countdownVal;
+  document.getElementById('countdown').textContent = 30;
   countdownTimer = setInterval(() => {
-    countdownVal--;
-    document.getElementById('countdown').textContent = countdownVal;
+    document.getElementById('countdown').textContent = --countdownVal;
     if (countdownVal <= 0) refresh();
   }, 1000);
 }

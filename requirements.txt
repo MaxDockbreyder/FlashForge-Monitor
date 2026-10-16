@@ -1,2 +1,2 @@
+Flask>=3.0,<4.0
 flashforge-python-api
-flask

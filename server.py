@@ -1,134 +1,169 @@
 """
-FlashForge Dashboard - Backend
-==============================
-Installation:
-    pip install flashforge-python-api flask
+FlashForge printer dashboard.
 
-Start:
+Install:
+    python -m pip install -r requirements.txt
+
+Configure printer IP, serial and check code below, then run:
     python server.py
 
-Then open in browser:
-    http://localhost:5000
+Open http://127.0.0.1:5000
 """
 
 import asyncio
 import base64
+import math
+import os
 from datetime import timedelta
-from flask import Flask, render_template, jsonify
+
+from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
 
-# ─── CONFIGURATION ────────────────────────────────────────────────────────────
+# Fill these in for each printer. Keep credentials private; do not commit them.
 PRINTERS = [
     {
-        "id":         "ad5x",
-        "name":       "AD5X",
-        "ip":         "192.168.1.100",   # ← adjust IP
-        "serial":     "SNXXXXXXXXXX",    # ← enter serial number
-        "check_code": "XXXXXXXX",        # ← enter check code / printer ID
-        "camera_url": "http://XXXXXXXXXXXXXX:8080/?action=stream", # ← replace "X" with printer IP
+        "id": "ad5x",
+        "name": "AD5X",
+        "ip": os.getenv("AD5X_IP", "FILL IN HERE"),
+        "serial": os.getenv("AD5X_SERIAL", "FILL IN HERE"),
+        "check_code": os.getenv("AD5X_CHECK_CODE", "FILL IN HERE"),
+        "camera_url": os.getenv("AD5X_CAMERA_URL", "FILL IN HERE"),
     },
     {
-        "id":         "ad5m",
-        "name":       "AD5M",
-        "ip":         "192.168.1.101",   # ← adjust IP
-        "serial":     "SNXXXXXXXXXX",    # ← enter serial number
-        "check_code": "XXXXXXXX",        # ← enter check code / printer ID
-        "camera_url": "http://XXXXXXXXXXXX:8080/?action=stream", # ← replace "X" with printer IP
+        "id": "ad5m",
+        "name": "AD5M",
+        "ip": os.getenv("AD5M_IP", "FILL IN HERE"),
+        "serial": os.getenv("AD5M_SERIAL", "FILL IN HERE"),
+        "check_code": os.getenv("AD5M_CHECK_CODE", "FILL IN HERE"),
+        "camera_url": os.getenv("AD5M_CAMERA_URL", "FILL IN HERE"),
     },
 ]
-# ──────────────────────────────────────────────────────────────────────────────
+
+CONNECTION_OPTIONS = None
+
+
+def get_printer_cfg(printer_id):
+    return next((printer for printer in PRINTERS if printer["id"] == printer_id), None)
 
 
 def seconds_to_time(seconds):
-    if seconds is None or seconds <= 0:
+    """Convert a non-negative number of seconds to H:MM:SS."""
+    try:
+        seconds = float(seconds)
+    except (TypeError, ValueError):
         return None
-    return str(timedelta(seconds=int(seconds)))
+    if not math.isfinite(seconds) or seconds < 0:
+        return None
+    seconds = int(seconds)
+    hours, remainder = divmod(seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes}:{secs:02d}"
 
 
 def normalize_progress(value):
-    """Converts progress to 0-100%, regardless of whether API returns 0-1 or 0-100."""
-    if value is None:
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
         return 0.0
-    f = float(value)
-    if f <= 1.0:
-        return round(f * 100, 1)
-    return round(f, 1)
+    if not math.isfinite(value):
+        return 0.0
+    if 0 <= value <= 1:
+        value *= 100
+    return round(min(100.0, max(0.0, value)), 1)
+
+
+def printer_result(cfg):
+    return {
+        "id": cfg["id"],
+        "name": cfg["name"],
+        "ip": cfg["ip"],
+        "camera_url": cfg.get("camera_url") or None,
+        "online": False,
+        "error": None,
+        "state": "unknown",
+        "file": None,
+        "progress": 0.0,
+        "layer_current": None,
+        "layer_total": None,
+        "time_remaining": None,
+        "time_elapsed": None,
+        "temp_nozzle": None,
+        "temp_nozzle_target": None,
+        "temp_bed": None,
+        "temp_bed_target": None,
+        "thumbnail": None,
+        "lights_on": None,
+    }
+
+
+def read_attr(obj, name, default=None):
+    return getattr(obj, name, default) if obj is not None else default
 
 
 async def query_printer(cfg):
-    result = {
-        "id":                 cfg["id"],
-        "name":               cfg["name"],
-        "ip":                 cfg["ip"],
-        "camera_url":         cfg.get("camera_url", None),
-        "online":             False,
-        "error":              None,
-        "state":              "unknown",
-        "file":               None,
-        "progress":           0.0,
-        "layer_current":      None,
-        "layer_total":        None,
-        "time_remaining":     None,
-        "time_elapsed":       None,
-        "temp_nozzle":        None,
-        "temp_nozzle_target": None,
-        "temp_bed":           None,
-        "temp_bed_target":    None,
-        "thumbnail":          None,
-        "_raw_progress":      None,
-    }
+    result = printer_result(cfg)
+
+    missing = [key for key in ("ip", "serial", "check_code") if not cfg.get(key)]
+    if missing:
+        result["error"] = "Configure " + ", ".join(missing) + " for this printer."
+        return result
 
     try:
         from flashforge import FlashForgeClient
         from flashforge.client import FiveMClientConnectionOptions
 
-        options = FiveMClientConnectionOptions(http_port=8898, tcp_port=8899)
+        options = FiveMClientConnectionOptions(
+            http_port=8898,
+            tcp_port=8899,
+            led_control_override=True,
+        )
+
         async with FlashForgeClient(
             cfg["ip"], cfg["serial"], cfg["check_code"], options=options
         ) as client:
             if not await client.initialize():
-                result["error"] = "Connection failed"
+                result["error"] = "Connection failed. Check the printer network and credentials."
                 return result
 
             result["online"] = True
-
             info = await client.get_printer_status()
             if info:
-                state = getattr(info, "machine_state", None)
-                result["state"] = state.value if hasattr(state, "value") else str(state)
+                state = read_attr(info, "machine_state")
+                result["state"] = getattr(state, "value", state) or "unknown"
+                result["file"] = read_attr(info, "print_file_name")
+                result["progress"] = normalize_progress(read_attr(info, "print_progress"))
+                result["layer_current"] = read_attr(info, "current_print_layer")
+                result["layer_total"] = read_attr(info, "total_print_layers")
+                result["lights_on"] = read_attr(info, "lights_on")
 
-                result["file"]          = getattr(info, "print_file_name", None)
-                raw_prog                = getattr(info, "print_progress", None)
-                result["_raw_progress"] = raw_prog
-                result["progress"]      = normalize_progress(raw_prog)
-                result["layer_current"] = getattr(info, "current_print_layer", None)
-                result["layer_total"]   = getattr(info, "total_print_layers", None)
+                elapsed = read_attr(info, "print_duration")
+                result["time_elapsed"] = seconds_to_time(elapsed)
+                progress = result["progress"]
+                try:
+                    elapsed_num = float(elapsed)
+                except (TypeError, ValueError):
+                    elapsed_num = 0
+                if elapsed_num > 0 and 0 < progress < 100:
+                    result["time_remaining"] = seconds_to_time(
+                        elapsed_num * (100 - progress) / progress
+                    )
 
-                elapsed_sec = getattr(info, "print_duration", None)
-                result["time_elapsed"]  = seconds_to_time(elapsed_sec)
-
-                prog_pct = result["progress"]
-                if elapsed_sec and elapsed_sec > 0 and prog_pct and prog_pct > 0:
-                    remaining = (elapsed_sec / prog_pct) * (100 - prog_pct)
-                    result["time_remaining"] = seconds_to_time(int(remaining))
-
-                extruder = getattr(info, "extruder", None)
-                bed      = getattr(info, "print_bed", None)
+                extruder = read_attr(info, "extruder")
+                bed = read_attr(info, "print_bed")
                 if extruder:
-                    result["temp_nozzle"]        = getattr(extruder, "current", None)
-                    result["temp_nozzle_target"] = getattr(extruder, "set", None)
+                    result["temp_nozzle"] = read_attr(extruder, "current")
+                    result["temp_nozzle_target"] = read_attr(extruder, "set")
                 if bed:
-                    result["temp_bed"]        = getattr(bed, "current", None)
-                    result["temp_bed_target"] = getattr(bed, "set", None)
+                    result["temp_bed"] = read_attr(bed, "current")
+                    result["temp_bed_target"] = read_attr(bed, "set")
 
-            # Load thumbnail
             if result["file"]:
                 try:
                     thumb_bytes = await client.files.get_gcode_thumbnail(result["file"])
                     if thumb_bytes:
-                        b64 = base64.b64encode(thumb_bytes).decode("utf-8")
-                        result["thumbnail"] = f"data:image/png;base64,{b64}"
+                        encoded = base64.b64encode(thumb_bytes).decode("ascii")
+                        result["thumbnail"] = f"data:image/png;base64,{encoded}"
                 except Exception:
                     pass
 
@@ -138,66 +173,129 @@ async def query_printer(cfg):
                         if thumb_info and hasattr(thumb_info, "to_base64_data_url"):
                             result["thumbnail"] = thumb_info.to_base64_data_url()
                         elif thumb_info and hasattr(thumb_info, "get_image_bytes"):
-                            img = thumb_info.get_image_bytes()
-                            if img:
-                                b64 = base64.b64encode(img).decode("utf-8")
-                                result["thumbnail"] = f"data:image/png;base64,{b64}"
+                            image_bytes = thumb_info.get_image_bytes()
+                            if image_bytes:
+                                encoded = base64.b64encode(image_bytes).decode("ascii")
+                                result["thumbnail"] = f"data:image/png;base64,{encoded}"
                     except Exception:
                         pass
 
-            # Fallback temperatures
             if result["temp_nozzle"] is None:
                 try:
-                    temp = await client.get_temperatures()
-                    if temp:
-                        ext  = temp.get_extruder_temp() if hasattr(temp, "get_extruder_temp") else None
-                        bed  = temp.get_bed_temp()      if hasattr(temp, "get_bed_temp")      else None
-                        if ext:
-                            result["temp_nozzle"]        = getattr(ext, "current", None)
-                            result["temp_nozzle_target"] = getattr(ext, "set", None)
+                    temperatures = await client.get_temperatures()
+                    if temperatures:
+                        extruder = (
+                            temperatures.get_extruder_temp()
+                            if hasattr(temperatures, "get_extruder_temp")
+                            else None
+                        )
+                        bed = (
+                            temperatures.get_bed_temp()
+                            if hasattr(temperatures, "get_bed_temp")
+                            else None
+                        )
+                        if extruder:
+                            result["temp_nozzle"] = read_attr(extruder, "current")
+                            result["temp_nozzle_target"] = read_attr(extruder, "set")
                         if bed:
-                            result["temp_bed"]        = getattr(bed, "current", None)
-                            result["temp_bed_target"] = getattr(bed, "set", None)
+                            result["temp_bed"] = read_attr(bed, "current")
+                            result["temp_bed_target"] = read_attr(bed, "set")
                 except Exception:
                     pass
 
     except ImportError:
-        result["error"] = "flashforge-python-api not installed"
-    except ConnectionRefusedError:
-        result["error"] = f"Unreachable ({cfg['ip']})"
+        result["error"] = "Missing dependency. Install requirements.txt first."
+    except (ConnectionRefusedError, OSError) as exc:
+        result["error"] = f"Cannot reach printer at {cfg['ip']}: {exc}"
     except TimeoutError:
-        result["error"] = f"Timeout ({cfg['ip']})"
-    except Exception as e:
-        result["error"] = str(e)
+        result["error"] = f"Connection to {cfg['ip']} timed out."
+    except Exception as exc:
+        # Keep the server running if one printer or one API call fails.
+        result["error"] = f"{type(exc).__name__}: {exc}"
 
     return result
 
 
 async def all_printers():
-    tasks = [query_printer(cfg) for cfg in PRINTERS]
-    return await asyncio.gather(*tasks)
+    return await asyncio.gather(*(query_printer(cfg) for cfg in PRINTERS))
 
 
-@app.route("/")
+async def set_led(cfg, turn_on):
+    missing = [key for key in ("ip", "serial", "check_code") if not cfg.get(key)]
+    if missing:
+        return {"success": False, "error": "Configure " + ", ".join(missing) + "."}
+
+    try:
+        from flashforge import FlashForgeClient
+        from flashforge.client import FiveMClientConnectionOptions
+
+        options = FiveMClientConnectionOptions(
+            http_port=8898,
+            tcp_port=8899,
+            led_control_override=True,
+        )
+        async with FlashForgeClient(
+            cfg["ip"], cfg["serial"], cfg["check_code"], options=options
+        ) as client:
+            if not await client.initialize():
+                return {"success": False, "error": "Connection failed."}
+            if turn_on:
+                success = await client.control.set_led_on()
+            else:
+                success = await client.control.set_led_off()
+            return {"success": bool(success), "lights_on": bool(turn_on) if success else None}
+    except ImportError:
+        return {"success": False, "error": "Missing dependency. Install requirements.txt first."}
+    except Exception as exc:
+        return {"success": False, "error": f"{type(exc).__name__}: {exc}"}
+
+
+@app.get("/")
 def index():
-    return render_template("index.html", printers=PRINTERS)
+    public_printers = [
+        {
+            "id": printer["id"],
+            "name": printer["name"],
+            "ip": printer["ip"],
+            "camera_url": printer.get("camera_url") or None,
+        }
+        for printer in PRINTERS
+    ]
+    return render_template("index.html", printers=public_printers)
 
 
-@app.route("/api/status")
+@app.get("/api/status")
 def api_status():
-    results = asyncio.run(all_printers())
-    return jsonify(list(results))
+    try:
+        return jsonify(asyncio.run(all_printers()))
+    except Exception:
+        app.logger.exception("Failed to collect printer status")
+        return jsonify({"error": "Unable to collect printer status."}), 500
 
 
-@app.route("/api/debug")
+@app.post("/api/led/<printer_id>")
+def api_led(printer_id):
+    cfg = get_printer_cfg(printer_id)
+    if cfg is None:
+        return jsonify({"success": False, "error": "Unknown printer."}), 404
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not isinstance(data.get("on"), bool):
+        return jsonify({"success": False, "error": 'Expected JSON body: {"on": true|false}'}), 400
+
+    return jsonify(asyncio.run(set_led(cfg, data["on"])))
+
+
+@app.get("/api/debug")
 def api_debug():
+    """Status without large thumbnail payloads."""
     results = asyncio.run(all_printers())
-    for r in results:
-        r["thumbnail"] = "..." if r.get("thumbnail") else None
-    return jsonify(list(results))
+    for result in results:
+        result["thumbnail"] = bool(result.get("thumbnail"))
+    return jsonify(results)
 
 
 if __name__ == "__main__":
-    print("FlashForge Dashboard running at http://localhost:5000")
-    print("Debug info:        http://localhost:5000/api/debug")
+    print("FlashForge Dashboard: http://127.0.0.1:5000")
+    # Local network access is available; use a firewall if this host is exposed.
     app.run(debug=False, host="0.0.0.0", port=5000)

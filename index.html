@@ -1,564 +1,337 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FlashForge Monitor</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg:      #0c0e14;
-    --surface: #13161f;
-    --card:    #181c28;
-    --border:  #242840;
-    --accent:  #4f8aff;
-    --accent2: #ff6b35;
-    --green:   #22d17a;
-    --yellow:  #ffc93c;
-    --red:     #ff4c6a;
-    --muted:   #5a607a;
-    --text:    #e8ecf8;
-    --subtext: #8890aa;
-    --mono:    'Space Mono', monospace;
-    --sans:    'DM Sans', sans-serif;
-  }
-
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: var(--bg); color: var(--text);
-    font-family: var(--sans); min-height: 100vh; overflow-x: hidden;
-  }
-
-  body::before {
-    content: ''; position: fixed; inset: 0;
-    background-image:
-      linear-gradient(var(--border) 1px, transparent 1px),
-      linear-gradient(90deg, var(--border) 1px, transparent 1px);
-    background-size: 40px 40px; opacity: 0.35;
-    pointer-events: none; z-index: 0;
-  }
-
-  .wrapper {
-    position: relative; z-index: 1;
-    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem;
-  }
-
-  /* ── Header ── */
-  header {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 2.5rem; padding-bottom: 1.5rem;
-    border-bottom: 1px solid var(--border);
-  }
-  .logo { display: flex; align-items: center; gap: 0.75rem; }
-  .logo-icon {
-    width: 42px; height: 42px;
-    background: linear-gradient(135deg, var(--accent), #7b5ea7);
-    border-radius: 10px; display: flex; align-items: center;
-    justify-content: center; font-size: 1.3rem;
-  }
-  .logo-text h1 { font-family: var(--mono); font-size: 1.1rem; letter-spacing: 0.05em; }
-  .logo-text p  { font-size: 0.75rem; color: var(--muted); font-family: var(--mono); }
-  .header-right { display: flex; align-items: center; gap: 1rem; }
-  .refresh-btn {
-    background: var(--surface); border: 1px solid var(--border);
-    color: var(--text); font-family: var(--mono); font-size: 0.75rem;
-    padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer;
-    display: flex; align-items: center; gap: 0.5rem;
-    transition: border-color 0.2s, background 0.2s;
-  }
-  .refresh-btn:hover { border-color: var(--accent); background: #1a1f30; }
-  .refresh-btn.loading .icon { animation: spin 0.8s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .auto-badge {
-    font-family: var(--mono); font-size: 0.7rem; color: var(--muted);
-    padding: 0.3rem 0.7rem; border: 1px solid var(--border); border-radius: 20px;
-  }
-  #countdown { color: var(--accent); }
-
-  /* ── Grid ── */
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); gap: 1.5rem; }
-
-  /* ── Card ── */
-  .card {
-    background: var(--card); border: 1px solid var(--border);
-    border-radius: 16px; overflow: hidden;
-    transition: border-color 0.3s; animation: fadeIn 0.4s ease both;
-  }
-  @keyframes fadeIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
-  .card.printing { border-color: rgba(79,138,255,0.4); }
-  .card.error    { border-color: rgba(255,76,106,0.4); }
-  .card.offline  { border-color: rgba(90,96,122,0.4); }
-
-  /* Card header */
-  .card-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border);
-    background: rgba(255,255,255,0.02);
-  }
-  .printer-info { display: flex; align-items: center; gap: 0.9rem; }
-  .printer-avatar {
-    width: 44px; height: 44px; border-radius: 10px;
-    background: linear-gradient(135deg, #1e2640, #2a3055);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.4rem; border: 1px solid var(--border); flex-shrink: 0;
-  }
-  .printer-name { font-family: var(--mono); font-size: 1rem; font-weight: 700; letter-spacing: 0.05em; }
-  .printer-ip   { font-family: var(--mono); font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
-  .header-badges { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
-
-  /* Status pill */
-  .status-pill {
-    display: flex; align-items: center; gap: 0.4rem;
-    font-family: var(--mono); font-size: 0.7rem;
-    padding: 0.35rem 0.8rem; border-radius: 20px; border: 1px solid;
-    text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap;
-  }
-  .status-pill.printing { color: var(--accent); border-color: rgba(79,138,255,0.4); background: rgba(79,138,255,0.08); }
-  .status-pill.ready    { color: var(--green);  border-color: rgba(34,209,122,0.4); background: rgba(34,209,122,0.08); }
-  .status-pill.offline  { color: var(--muted);  border-color: var(--border);        background: transparent; }
-  .status-pill.error    { color: var(--red);    border-color: rgba(255,76,106,0.4); background: rgba(255,76,106,0.08); }
-  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-  .status-pill.printing .status-dot { animation: pulse 1.5s ease-in-out infinite; }
-  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:.5;transform:scale(.7);} }
-
-  /* Camera toggle button */
-  .cam-toggle {
-    display: flex; align-items: center; gap: 0.4rem;
-    font-family: var(--mono); font-size: 0.7rem;
-    padding: 0.35rem 0.8rem; border-radius: 20px;
-    border: 1px solid var(--border); background: var(--surface);
-    color: var(--subtext); cursor: pointer; white-space: nowrap;
-    transition: border-color 0.2s, color 0.2s, background 0.2s;
-    user-select: none;
-  }
-  .cam-toggle:hover  { border-color: var(--accent); color: var(--accent); background: rgba(79,138,255,0.08); }
-  .cam-toggle.active { border-color: rgba(79,138,255,0.5); color: var(--accent); background: rgba(79,138,255,0.1); }
-  .cam-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); transition: background 0.2s; }
-  .cam-toggle.active .cam-dot { background: var(--accent); animation: pulse 1.5s ease-in-out infinite; }
-
-  /* Thumbnail banner */
-  .thumbnail-banner {
-    position: relative; width: 100%; height: 200px;
-    background: var(--surface); border-bottom: 1px solid var(--border);
-    overflow: hidden; display: flex; align-items: center; justify-content: center;
-  }
-  .thumbnail-banner img { width: 100%; height: 100%; object-fit: contain; padding: 12px; }
-  .thumbnail-banner .no-thumb {
-    display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
-    color: var(--muted); font-family: var(--mono); font-size: 0.75rem;
-  }
-  .no-thumb-icon { font-size: 2.5rem; opacity: 0.4; }
-  .thumbnail-banner::after {
-    content: ''; position: absolute; inset: 0;
-    background: linear-gradient(to bottom, transparent 60%, rgba(24,28,40,0.85) 100%);
-    pointer-events: none;
-  }
-  .thumb-progress-bar {
-    position: absolute; bottom: 0; left: 0; height: 3px;
-    background: linear-gradient(90deg, var(--accent), #7b9fff);
-    transition: width 0.8s ease; z-index: 2;
-  }
-
-  /* Card body */
-  .card-body { padding: 1.25rem 1.5rem 1.5rem; }
-
-  .error-msg {
-    display: flex; align-items: center; gap: 0.75rem;
-    padding: 1rem 1.25rem;
-    background: rgba(255,76,106,0.07); border: 1px solid rgba(255,76,106,0.2);
-    border-radius: 10px; color: var(--red); font-size: 0.85rem; font-family: var(--mono);
-  }
-
-  .job-file { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1.25rem; }
-  .job-file-icon { color: var(--muted); font-size: 0.9rem; }
-  .job-file-name {
-    font-family: var(--mono); font-size: 0.82rem; color: var(--subtext);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-
-  .progress-section { margin-bottom: 1.25rem; }
-  .progress-header { display: flex; justify-content: space-between; margin-bottom: 0.6rem; }
-  .progress-label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--mono); }
-  .progress-value { font-family: var(--mono); font-size: 1.2rem; font-weight: 700; color: var(--accent); line-height: 1; }
-  .progress-track { height: 8px; background: var(--surface); border-radius: 4px; overflow: hidden; border: 1px solid var(--border); }
-  .progress-fill {
-    height: 100%; background: linear-gradient(90deg, var(--accent), #7b9fff);
-    border-radius: 4px; transition: width 0.8s cubic-bezier(0.4,0,0.2,1); position: relative;
-  }
-  .progress-fill::after {
-    content: ''; position: absolute; inset: 0;
-    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%);
-    animation: shimmer 2s infinite;
-  }
-  @keyframes shimmer { from{transform:translateX(-100%);} to{transform:translateX(100%);} }
-  .layer-info { display: flex; justify-content: flex-end; margin-top: 0.5rem; font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
-
-  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem; }
-  .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.85rem 1rem; }
-  .stat-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--mono); margin-bottom: 0.3rem; }
-  .stat-value { font-family: var(--mono); font-size: 0.95rem; font-weight: 700; color: var(--text); }
-  .stat-value.dim { color: var(--subtext); font-size: 0.85rem; }
-
-  .temps { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-  .temp-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.85rem 1rem; }
-  .temp-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--mono); margin-bottom: 0.3rem; }
-  .temp-val { font-family: var(--mono); font-size: 1.05rem; font-weight: 700; }
-  .temp-val.hot  { color: var(--accent2); }
-  .temp-val.warm { color: var(--yellow); }
-  .temp-val.cool { color: var(--subtext); }
-  .temp-target { font-size: 0.72rem; color: var(--muted); font-family: var(--mono); margin-top: 1px; }
-
-  .idle-msg {
-    display: flex; flex-direction: column; align-items: center;
-    gap: 0.5rem; padding: 2rem; color: var(--muted); text-align: center;
-  }
-  .idle-msg .idle-icon { font-size: 2rem; }
-  .idle-msg p { font-size: 0.85rem; font-family: var(--mono); }
-
-  /* ── Camera Panel ── */
-  .cam-panel {
-    overflow: hidden; max-height: 0;
-    transition: max-height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  .cam-panel.open { max-height: 500px; }
-
-  .cam-divider {
-    display: flex; align-items: center; gap: 0.75rem;
-    padding: 0 1.5rem;
-    cursor: pointer;
-    border-top: 1px solid var(--border);
-    background: rgba(255,255,255,0.01);
-    transition: background 0.2s;
-  }
-  .cam-divider:hover { background: rgba(79,138,255,0.04); }
-  .cam-divider-line { flex: 1; height: 1px; background: var(--border); }
-  .cam-divider-label {
-    display: flex; align-items: center; gap: 0.4rem;
-    font-family: var(--mono); font-size: 0.68rem; color: var(--muted);
-    padding: 0.6rem 0; text-transform: uppercase; letter-spacing: 0.08em;
-    white-space: nowrap; user-select: none;
-  }
-  .cam-chevron { transition: transform 0.3s; font-style: normal; }
-  .cam-panel.open ~ .cam-divider .cam-chevron,
-  .cam-divider.open .cam-chevron { transform: rotate(180deg); }
-
-  .cam-stream-wrap {
-    background: #000; width: 100%;
-    aspect-ratio: 16/9; position: relative;
-    display: flex; align-items: center; justify-content: center;
-    border-top: 1px solid var(--border);
-  }
-  .cam-stream-wrap img { width: 100%; height: 100%; object-fit: contain; display: block; }
-  .cam-offline {
-    display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
-    color: var(--muted); font-family: var(--mono); font-size: 0.75rem; text-align: center;
-  }
-  .cam-offline-icon { font-size: 2.5rem; opacity: 0.3; }
-  .cam-bar {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0.55rem 1rem; background: rgba(0,0,0,0.5);
-    border-top: 1px solid var(--border);
-    font-family: var(--mono); font-size: 0.68rem; color: var(--muted);
-  }
-  .cam-bar a { color: var(--accent); text-decoration: none; }
-  .cam-bar a:hover { text-decoration: underline; }
-
-  /* Skeleton */
-  .skeleton {
-    background: linear-gradient(90deg, var(--surface) 25%, var(--border) 50%, var(--surface) 75%);
-    background-size: 200% 100%; animation: sk 1.5s infinite; border-radius: 6px;
-  }
-  @keyframes sk { from{background-position:200% 0;} to{background-position:-200% 0;} }
-
-  footer {
-    margin-top: 3rem; text-align: center;
-    font-family: var(--mono); font-size: 0.7rem; color: var(--muted);
-    border-top: 1px solid var(--border); padding-top: 1.5rem;
-  }
-
-  @media (max-width: 560px) {
-    .grid { grid-template-columns: 1fr; }
-    header { flex-direction: column; gap: 1rem; align-items: flex-start; }
-  }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>FlashForge · Printer Status</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111211;
+      --panel: #191a18;
+      --panel-soft: #20211f;
+      --line: #30312e;
+      --text: #e8e9e5;
+      --muted: #92958e;
+      --green: #8fc7a0;
+      --blue: #9db7df;
+      --red: #e39a92;
+      --amber: #d9bd7c;
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font: 14px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button { font: inherit; }
+    .shell { width: min(1040px, calc(100% - 40px)); margin: 0 auto; padding: 34px 0 28px; }
+    header {
+      display: flex; align-items: center; justify-content: space-between; gap: 18px;
+      padding-bottom: 22px; border-bottom: 1px solid var(--line); margin-bottom: 24px;
+    }
+    h1 { font-size: 19px; font-weight: 600; letter-spacing: -.025em; margin: 0; }
+    .subtitle { color: var(--muted); font-size: 13px; margin-top: 3px; }
+    .header-actions { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 12px; }
+    .button {
+      border: 1px solid var(--line); border-radius: 6px; padding: 7px 11px;
+      color: var(--text); background: var(--panel); cursor: pointer;
+    }
+    .button:hover { background: var(--panel-soft); }
+    .button:disabled { opacity: .5; cursor: wait; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+    .card { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--panel); min-width: 0; }
+    .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 17px; }
+    .printer-name { font-size: 15px; font-weight: 600; }
+    .printer-ip { color: var(--muted); font-size: 12px; margin-top: 2px; overflow-wrap: anywhere; }
+    .head-right { display: flex; align-items: center; gap: 10px; }
+    .status { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--muted); font-size: 12px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .status.printing { color: var(--blue); }
+    .status.ready { color: var(--green); }
+    .status.error { color: var(--red); }
+    .led { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 5px; padding: 5px 8px; cursor: pointer; font-size: 12px; }
+    .led.on { color: var(--amber); border-color: #66583b; }
+    .led:disabled { opacity: .45; cursor: not-allowed; }
+    .thumb { height: 190px; display: flex; justify-content: center; align-items: center; background: #151614; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .thumb img { width: 100%; height: 100%; object-fit: contain; }
+    .thumb-empty { color: var(--muted); font-size: 12px; }
+    .body { padding: 17px; }
+    .error { color: var(--red); background: #271c1a; border: 1px solid #4a2d29; padding: 10px 11px; border-radius: 5px; overflow-wrap: anywhere; }
+    .job { color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; margin-bottom: 17px; }
+    .progress-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+    .section-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .07em; }
+    .percent { font-size: 14px; font-variant-numeric: tabular-nums; }
+    .track { height: 5px; border-radius: 10px; background: #30312e; overflow: hidden; }
+    .fill { height: 100%; background: #9db7df; transition: width .25s ease; }
+    .layer { text-align: right; margin-top: 7px; color: var(--muted); font-size: 12px; }
+    .stats, .temps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+    .stat, .temp { border-top: 1px solid var(--line); padding-top: 10px; min-width: 0; }
+    .stat-label, .temp-label { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+    .stat-value { font-size: 14px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .temp-value { font-size: 17px; font-variant-numeric: tabular-nums; }
+    .target { color: var(--muted); font-size: 12px; }
+    .idle { color: var(--muted); padding: 8px 0 2px; }
+    .camera-toggle { display: flex; justify-content: space-between; width: 100%; text-align: left; border: 0; border-top: 1px solid var(--line); padding: 12px 17px; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
+    .camera-toggle:hover { color: var(--text); }
+    .camera { display: none; border-top: 1px solid var(--line); background: #080908; }
+    .camera.open { display: block; }
+    .camera img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; }
+    .camera-foot { display: flex; justify-content: space-between; gap: 12px; padding: 9px 12px; font-size: 12px; color: var(--muted); }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    footer { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--line); padding-top: 16px; margin-top: 24px; }
+    @media (max-width: 680px) {
+      .shell { width: min(100% - 24px, 520px); padding-top: 22px; }
+      header { align-items: flex-start; }
+      .grid { grid-template-columns: 1fr; }
+      .header-actions { flex-direction: column-reverse; align-items: flex-end; gap: 7px; }
+      .thumb { height: 170px; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
+  </style>
 </head>
 <body>
-<div class="wrapper">
-
-  <header>
-    <div class="logo">
-      <div class="logo-icon">🖨</div>
-      <div class="logo-text">
-        <h1>FLASHFORGE MONITOR</h1>
-        <p>AD5X &amp; AD5M Dashboard</p>
+  <main class="shell">
+    <header>
+      <div>
+        <h1>FlashForge</h1>
+        <div class="subtitle">Printer status · AD5X and AD5M</div>
       </div>
-    </div>
-    <div class="header-right">
-      <span class="auto-badge">Auto ⟳ <span id="countdown">30</span>s</span>
-      <button class="refresh-btn" id="refreshBtn" onclick="refresh()">
-        <span class="icon">⟳</span> Refresh
-      </button>
-    </div>
-  </header>
+      <div class="header-actions">
+        <span>Refresh in <span id="countdown">30</span> s</span>
+        <button class="button" id="refreshBtn" type="button">Refresh</button>
+      </div>
+    </header>
 
-  <div class="grid" id="grid">
-    {% for p in printers %}
-    <div class="card" id="card-{{ p.id }}">
-
-      <!-- Header -->
-      <div class="card-header">
-        <div class="printer-info">
-          <div class="printer-avatar">🖨</div>
+    <section class="grid" id="grid" aria-label="Printers">
+      {% for p in printers %}
+      <article class="card" id="card-{{ p.id }}">
+        <div class="card-head">
           <div>
             <div class="printer-name">{{ p.name }}</div>
-            <div class="printer-ip">{{ p.ip }}</div>
+            <div class="printer-ip">{{ p.ip or 'IP not configured' }}</div>
+          </div>
+          <div class="head-right">
+            <button class="led" id="ledBtn-{{ p.id }}" type="button" disabled>LED</button>
+            <span class="status" id="pill-{{ p.id }}"><span class="dot"></span><span>Loading</span></span>
           </div>
         </div>
-        <div class="header-badges">
-          <div class="status-pill offline" id="pill-{{ p.id }}">
-            <div class="status-dot"></div>
-            <span>Loading…</span>
-          </div>
+        <div id="thumb-{{ p.id }}"></div>
+        <div class="body" id="body-{{ p.id }}">
+          <div class="idle">Loading printer status…</div>
         </div>
-      </div>
+        {% if p.camera_url %}
+        <div class="camera" id="camPanel-{{ p.id }}"></div>
+        <button class="camera-toggle" id="camToggle-{{ p.id }}" type="button" aria-expanded="false">
+          <span>Camera</span><span>Open +</span>
+        </button>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </section>
 
-      <!-- Model thumbnail -->
-      <div id="thumb-{{ p.id }}"></div>
+    <footer>
+      <span>FlashForge Monitor</span>
+      <span>Last updated: <time id="lastUpdate">–</time></span>
+    </footer>
+  </main>
 
-      <!-- Print info body -->
-      <div class="card-body" id="body-{{ p.id }}">
-        <div style="display:flex;flex-direction:column;gap:0.75rem;padding:0.5rem 0">
-          <div class="skeleton" style="height:16px;width:60%"></div>
-          <div class="skeleton" style="height:8px;width:100%"></div>
-          <div class="skeleton" style="height:60px;width:100%"></div>
+  <script>
+    const printerConfig = {{ printers | tojson }};
+    const ledStates = {};
+    const cameraOpen = {};
+    let countdown = 30;
+    let countdownTimer = null;
+    let refreshInProgress = false;
+
+    const byId = id => document.getElementById(id);
+    const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
+
+    function stateClass(state) {
+      const s = String(state || '').toLowerCase();
+      if (s.includes('print') || s.includes('building')) return 'printing';
+      if (s.includes('idle') || s.includes('ready') || s.includes('finish')) return 'ready';
+      if (s.includes('error') || s.includes('fail')) return 'error';
+      return '';
+    }
+
+    function stateLabel(state, online, error) {
+      if (error) return 'Error';
+      if (!online) return 'Offline';
+      const s = String(state || '').toLowerCase();
+      if (s.includes('print') || s.includes('building')) return 'Printing';
+      if (s.includes('pause')) return 'Paused';
+      if (s.includes('finish')) return 'Finished';
+      if (s.includes('idle') || s.includes('ready')) return 'Ready';
+      return state || 'Unknown';
+    }
+
+    function renderThumbnail(d) {
+      const el = byId(`thumb-${d.id}`);
+      if (!d.online || (!d.thumbnail && stateClass(d.state) !== 'printing')) {
+        el.innerHTML = '';
+        return;
+      }
+      if (d.thumbnail) {
+        el.innerHTML = `<div class="thumb"><img src="${escapeHtml(d.thumbnail)}" alt="Print preview"></div>`;
+      } else {
+        el.innerHTML = '<div class="thumb"><span class="thumb-empty">No preview available</span></div>';
+      }
+    }
+
+    function buildTemps(d) {
+      const rows = [];
+      if (d.temp_nozzle !== null && d.temp_nozzle !== undefined) {
+        rows.push(`<div class="temp"><div class="temp-label">Nozzle</div>
+          <div class="temp-value">${Math.round(Number(d.temp_nozzle))} °C</div>
+          ${d.temp_nozzle_target != null ? `<div class="target">Ziel ${Math.round(Number(d.temp_nozzle_target))} °C</div>` : ''}</div>`);
+      }
+      if (d.temp_bed !== null && d.temp_bed !== undefined) {
+        rows.push(`<div class="temp"><div class="temp-label">Bed</div>
+          <div class="temp-value">${Math.round(Number(d.temp_bed))} °C</div>
+          ${d.temp_bed_target != null ? `<div class="target">Ziel ${Math.round(Number(d.temp_bed_target))} °C</div>` : ''}</div>`);
+      }
+      return rows.length ? `<div class="temps">${rows.join('')}</div>` : '';
+    }
+
+    function renderCard(d) {
+      const card = byId(`card-${d.id}`);
+      const pill = byId(`pill-${d.id}`);
+      const body = byId(`body-${d.id}`);
+      const led = byId(`ledBtn-${d.id}`);
+      if (!card || !pill || !body) return;
+
+      const cls = stateClass(d.state);
+      const label = stateLabel(d.state, d.online, d.error);
+      pill.className = `status ${d.error ? 'error' : (!d.online ? '' : cls)}`;
+      pill.innerHTML = `<span class="dot"></span><span>${escapeHtml(label)}</span>`;
+
+      if (led) {
+        led.disabled = !d.online || Boolean(d.error);
+        led.classList.toggle('on', d.lights_on === true || ledStates[d.id] === true);
+        led.textContent = (d.lights_on === true || ledStates[d.id] === true) ? 'LED on' : 'LED';
+        if (typeof d.lights_on === 'boolean') ledStates[d.id] = d.lights_on;
+      }
+
+      renderThumbnail(d);
+      if (!d.online || d.error) {
+        body.innerHTML = `<div class="error">${escapeHtml(d.error || 'Printer unreachable.')}</div>`;
+        return;
+      }
+
+      const isPrinting = cls === 'printing';
+      if (!isPrinting && !d.file) {
+        body.innerHTML = `<div class="idle">No active print job.</div>${buildTemps(d)}`;
+        return;
+      }
+
+      const progress = Math.max(0, Math.min(100, Number(d.progress) || 0));
+      body.innerHTML = `
+        ${d.file ? `<div class="job" title="${escapeHtml(d.file)}">${escapeHtml(d.file)}</div>` : ''}
+        <div class="progress-head"><span class="section-label">Progress</span><span class="percent">${progress.toFixed(1)} %</span></div>
+        <div class="track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><div class="fill" style="width:${progress}%"></div></div>
+        ${d.layer_current != null && d.layer_total != null ? `<div class="layer">Layer ${escapeHtml(d.layer_current)} / ${escapeHtml(d.layer_total)}</div>` : ''}
+        <div class="stats">
+          <div class="stat"><div class="stat-label">Remaining</div><div class="stat-value">${escapeHtml(d.time_remaining || '–')}</div></div>
+          <div class="stat"><div class="stat-label">Elapsed</div><div class="stat-value">${escapeHtml(d.time_elapsed || '–')}</div></div>
         </div>
-      </div>
+        ${buildTemps(d)}`;
+    }
 
-      {% if p.camera_url %}
-      <!-- Camera expand panel -->
-      <div class="cam-panel" id="camPanel-{{ p.id }}"></div>
+    async function toggleLed(id) {
+      const btn = byId(`ledBtn-${id}`);
+      if (!btn || btn.disabled) return;
+      const turnOn = !Boolean(ledStates[id]);
+      btn.disabled = true;
+      try {
+        const response = await fetch(`/api/led/${encodeURIComponent(id)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ on: turnOn })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Could not switch the LED.');
+        ledStates[id] = turnOn;
+        btn.classList.toggle('on', turnOn);
+        btn.textContent = turnOn ? 'LED on' : 'LED';
+      } catch (error) {
+        console.error(error);
+        btn.title = error.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
 
-      <!-- Camera toggle bar (always visible) -->
-      <div class="cam-divider" id="camDivider-{{ p.id }}" onclick="toggleCamera('{{ p.id }}', '{{ p.camera_url }}', '{{ p.name }}')">
-        <div class="cam-divider-line"></div>
-        <div class="cam-divider-label">
-          📷 <span>Camera</span>
-          <i class="cam-chevron">▾</i>
-        </div>
-        <div class="cam-divider-line"></div>
-      </div>
-      {% endif %}
+    function toggleCamera(id, url, name) {
+      const panel = byId(`camPanel-${id}`);
+      const button = byId(`camToggle-${id}`);
+      if (!panel || !button) return;
+      if (cameraOpen[id]) {
+        panel.classList.remove('open');
+        panel.innerHTML = '';
+        cameraOpen[id] = false;
+        button.setAttribute('aria-expanded', 'false');
+        button.lastElementChild.textContent = 'Open +';
+        return;
+      }
+      // URLs are configured by the owner; escape values before inserting them into markup.
+      const safeUrl = escapeHtml(url);
+      panel.innerHTML = `<img src="${safeUrl}" alt="${escapeHtml(name)} Camerastream"
+        onerror="this.style.display='none'; this.insertAdjacentHTML('afterend','<p class=&quot;camera-foot&quot;>Camera stream unavailable.</p>')">
+        <div class="camera-foot"><span>${escapeHtml(name)} · Live feed</span><a href="${safeUrl}" target="_blank" rel="noopener noreferrer">Open in new tab ↗</a></div>`;
+      panel.classList.add('open');
+      cameraOpen[id] = true;
+      button.setAttribute('aria-expanded', 'true');
+      button.lastElementChild.textContent = 'Close −';
+    }
 
-    </div>
-    {% endfor %}
-  </div>
+    async function refresh() {
+      if (refreshInProgress) return;
+      refreshInProgress = true;
+      const btn = byId('refreshBtn');
+      btn.disabled = true;
+      try {
+        const response = await fetch('/api/status', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        if (!Array.isArray(data)) throw new Error(data.error || 'Ungültige Statusantwort');
+        data.forEach(renderCard);
+        byId('lastUpdate').textContent = new Date().toLocaleTimeString('de-DE');
+      } catch (error) {
+        console.error('Status konnte nicht geladen werden:', error);
+      } finally {
+        btn.disabled = false;
+        refreshInProgress = false;
+        resetCountdown();
+      }
+    }
 
-  <footer>
-    FlashForge Monitor · Last updated: <span id="lastUpdate">–</span>
-  </footer>
+    function resetCountdown() {
+      clearInterval(countdownTimer);
+      countdown = 30;
+      byId('countdown').textContent = countdown;
+      countdownTimer = setInterval(() => {
+        countdown -= 1;
+        byId('countdown').textContent = countdown;
+        if (countdown <= 0) refresh();
+      }, 1000);
+    }
 
-</div>
-
-<script>
-let countdownVal = 30;
-let countdownTimer;
-const camOpen = {};
-
-// ── Camera toggle ──────────────────────────────────────────────
-function toggleCamera(id, url, name) {
-  const panel   = document.getElementById('camPanel-' + id);
-  const divider = document.getElementById('camDivider-' + id);
-
-  if (camOpen[id]) {
-    // Close
-    panel.classList.remove('open');
-    divider.classList.remove('open');
-    setTimeout(() => { panel.innerHTML = ''; }, 450);
-    camOpen[id] = false;
-  } else {
-    // Open — inject MJPEG img
-    panel.innerHTML = `
-      <div class="cam-stream-wrap">
-        <img
-          src="${url}"
-          alt="${name} camera"
-          onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-        <div class="cam-offline" style="display:none">
-          <div class="cam-offline-icon">📷</div>
-          <span>Stream unavailable</span>
-        </div>
-      </div>
-      <div class="cam-bar">
-        <span>📷 ${name} — Live Feed</span>
-        <a href="${url}" target="_blank">Open fullscreen ↗</a>
-      </div>`;
-    panel.classList.add('open');
-    divider.classList.add('open');
-    camOpen[id] = true;
-  }
-}
-
-// ── State helpers ──────────────────────────────────────────────
-function stateClass(state) {
-  const s = (state || '').toLowerCase();
-  if (s.includes('print') || s.includes('building')) return 'printing';
-  if (s.includes('idle') || s.includes('ready') || s.includes('finish')) return 'ready';
-  if (s.includes('error') || s.includes('fail')) return 'error';
-  return 'offline';
-}
-
-function stateLabel(state) {
-  const s = (state || '').toLowerCase();
-  if (s.includes('print') || s.includes('building')) return 'Printing';
-  if (s.includes('idle') || s.includes('ready'))     return 'Ready';
-  if (s.includes('finish'))                           return 'Finished';
-  if (s.includes('pause'))                            return 'Paused';
-  if (s.includes('error') || s.includes('fail'))     return 'Error';
-  return state || 'Offline';
-}
-
-function tempColor(v) {
-  if (!v) return 'cool';
-  return v >= 180 ? 'hot' : v >= 50 ? 'warm' : 'cool';
-}
-
-// ── Thumbnail ──────────────────────────────────────────────────
-function renderThumbnail(d) {
-  const el = document.getElementById('thumb-' + d.id);
-  const isPrinting = stateClass(d.state) === 'printing';
-  if (!d.online || (!isPrinting && !d.thumbnail)) { el.innerHTML = ''; return; }
-  if (d.thumbnail) {
-    el.innerHTML = `
-      <div class="thumbnail-banner">
-        <img src="${d.thumbnail}" alt="Model preview">
-        ${isPrinting ? `<div class="thumb-progress-bar" style="width:${d.progress}%"></div>` : ''}
-      </div>`;
-  } else {
-    el.innerHTML = `
-      <div class="thumbnail-banner">
-        <div class="no-thumb"><div class="no-thumb-icon">🖨</div><span>No preview available</span></div>
-        <div class="thumb-progress-bar" style="width:${d.progress}%"></div>
-      </div>`;
-  }
-}
-
-// ── Card render ────────────────────────────────────────────────
-function renderCard(d) {
-  const card = document.getElementById('card-' + d.id);
-  const pill = document.getElementById('pill-' + d.id);
-  const body = document.getElementById('body-' + d.id);
-
-  const cls   = d.error ? 'error' : (d.online ? stateClass(d.state) : 'offline');
-  const label = d.error ? 'Error' : (d.online ? stateLabel(d.state) : 'Offline');
-
-  card.className = 'card ' + cls;
-  pill.className = 'status-pill ' + cls;
-  pill.innerHTML = `<div class="status-dot"></div><span>${label}</span>`;
-
-  renderThumbnail(d);
-
-  if (!d.online || d.error) {
-    body.innerHTML = `<div class="error-msg">⚠ ${d.error || 'Printer unreachable'}</div>`;
-    return;
-  }
-
-  const isPrinting = cls === 'printing';
-
-  if (!isPrinting && !d.file) {
-    body.innerHTML = `
-      <div class="idle-msg">
-        <div class="idle-icon">✅</div>
-        <p>Ready — no active print job</p>
-      </div>` + buildTemps(d);
-    return;
-  }
-
-  let html = '';
-
-  if (d.file) {
-    html += `
-      <div class="job-file">
-        <span class="job-file-icon">📄</span>
-        <span class="job-file-name" title="${d.file}">${d.file}</span>
-      </div>`;
-  }
-
-  html += `
-    <div class="progress-section">
-      <div class="progress-header">
-        <span class="progress-label">Progress</span>
-        <span class="progress-value">${d.progress.toFixed(1)}%</span>
-      </div>
-      <div class="progress-track">
-        <div class="progress-fill" style="width:${d.progress}%"></div>
-      </div>
-      ${(d.layer_current !== null && d.layer_total !== null)
-        ? `<div class="layer-info">Layer ${d.layer_current} / ${d.layer_total}</div>` : ''}
-    </div>
-    <div class="stats">
-      <div class="stat-box">
-        <div class="stat-label">⏱ Remaining</div>
-        <div class="stat-value ${d.time_remaining ? '' : 'dim'}">${d.time_remaining || '–'}</div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-label">⌛ Elapsed</div>
-        <div class="stat-value ${d.time_elapsed ? '' : 'dim'}">${d.time_elapsed || '–'}</div>
-      </div>
-    </div>`;
-
-  html += buildTemps(d);
-  body.innerHTML = html;
-}
-
-function buildTemps(d) {
-  if (d.temp_nozzle === null && d.temp_bed === null) return '';
-  let h = `<div class="temps">`;
-  if (d.temp_nozzle !== null) h += `
-    <div class="temp-box">
-      <div class="temp-label">🌡 Nozzle</div>
-      <div class="temp-val ${tempColor(d.temp_nozzle)}">${Math.round(d.temp_nozzle)}°C</div>
-      ${d.temp_nozzle_target !== null ? `<div class="temp-target">Target: ${Math.round(d.temp_nozzle_target)}°C</div>` : ''}
-    </div>`;
-  if (d.temp_bed !== null) h += `
-    <div class="temp-box">
-      <div class="temp-label">🔲 Bed</div>
-      <div class="temp-val ${tempColor(d.temp_bed)}">${Math.round(d.temp_bed)}°C</div>
-      ${d.temp_bed_target !== null ? `<div class="temp-target">Target: ${Math.round(d.temp_bed_target)}°C</div>` : ''}
-    </div>`;
-  return h + `</div>`;
-}
-
-// ── Data fetch ─────────────────────────────────────────────────
-async function refresh() {
-  document.getElementById('refreshBtn').classList.add('loading');
-  resetCountdown();
-  try {
-    const res  = await fetch('/api/status');
-    const data = await res.json();
-    data.forEach(renderCard);
-    document.getElementById('lastUpdate').textContent =
-      new Date().toLocaleTimeString('en-GB');
-  } catch (e) {
-    console.error('Failed to load:', e);
-  } finally {
-    document.getElementById('refreshBtn').classList.remove('loading');
-  }
-}
-
-function resetCountdown() {
-  clearInterval(countdownTimer);
-  countdownVal = 30;
-  document.getElementById('countdown').textContent = 30;
-  countdownTimer = setInterval(() => {
-    document.getElementById('countdown').textContent = --countdownVal;
-    if (countdownVal <= 0) refresh();
-  }, 1000);
-}
-
-refresh();
-resetCountdown();
-</script>
+    printerConfig.forEach(printer => {
+      const led = byId(`ledBtn-${printer.id}`);
+      if (led) led.addEventListener('click', () => toggleLed(printer.id));
+      const cameraButton = byId(`camToggle-${printer.id}`);
+      if (cameraButton) {
+        cameraButton.addEventListener('click', () => toggleCamera(printer.id, printer.camera_url, printer.name));
+      }
+    });
+    byId('refreshBtn').addEventListener('click', refresh);
+    refresh();
+    resetCountdown();
+  </script>
 </body>
 </html>

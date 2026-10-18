@@ -6,18 +6,18 @@ A real-time web dashboard for monitoring FlashForge AD5X and AD5M 3D printers on
 
 ## Features
 
-- 📊 Live print progress with animated progress bar
-- 🖼️ Model thumbnail preview (if embedded in G-code)
-- 📷 Live camera feed per printer (expandable panel, MJPEG stream)
-- 🌡️ Nozzle and bed temperatures (current & target)
-- ⏱️ Elapsed and estimated remaining print time
-- 🔢 Current layer / total layers
-- 🟢 Printer status badge (Printing / Ready / Paused / Error / Offline)
-- 🔄 Auto-refresh every 30 seconds
-- 📱 Responsive layout for desktop and mobile
-  
-<img width="1895" height="909" alt="Screenshot 2026-08-26 144001" src="https://github.com/user-attachments/assets/ba6e5917-2d9b-4b41-b7f2-e07f5d212ae4" />
+- Live print progress with animated progress bar
+- Model thumbnail preview (if embedded in G-code)
+- Live camera feed per printer (expandable panel, MJPEG stream)
+- Nozzle and bed temperatures (current & goal)
+- Elapsed and estimated remaining print time
+- Current layer / total layers
+- Printer status badge (Printing / Ready / Paused / Error / Offline)
+- Auto-refresh every 30 seconds
+- Responsive layout for desktop and mobile
+  <img width="1919" height="1079" alt="desktopver" src="https://github.com/user-attachments/assets/af208c10-808b-40ac-81be-edefc4ecd03c" />
 
+  <img width="1170" height="2532" alt="mobilever" src="https://github.com/user-attachments/assets/48fec6c2-b5da-4029-a40a-a7e388b4710a" />
 ## Requirements
 
 - Python 3.8+
@@ -43,7 +43,7 @@ A real-time web dashboard for monitoring FlashForge AD5X and AD5M 3D printers on
    On the printer touchscreen:
    > Settings → Network → LAN Mode → Enable
 
-   > ⚠️ LAN Mode must be on or the dashboard cannot connect. The Check Code / Printer ID is also only visible once LAN Mode is enabled.
+   > LAN Mode must be on or the dashboard cannot connect. The Check Code / Printer ID is also only visible once LAN Mode is enabled.
 
 4. **Configure your printers** in `server.py`
    ```python

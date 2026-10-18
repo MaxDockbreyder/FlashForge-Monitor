@@ -188,12 +188,12 @@
       if (d.temp_nozzle !== null && d.temp_nozzle !== undefined) {
         rows.push(`<div class="temp"><div class="temp-label">Nozzle</div>
           <div class="temp-value">${Math.round(Number(d.temp_nozzle))} °C</div>
-          ${d.temp_nozzle_target != null ? `<div class="target">Ziel ${Math.round(Number(d.temp_nozzle_target))} °C</div>` : ''}</div>`);
+          ${d.temp_nozzle_target != null ? `<div class="target">Goal ${Math.round(Number(d.temp_nozzle_target))} °C</div>` : ''}</div>`);
       }
       if (d.temp_bed !== null && d.temp_bed !== undefined) {
         rows.push(`<div class="temp"><div class="temp-label">Bed</div>
           <div class="temp-value">${Math.round(Number(d.temp_bed))} °C</div>
-          ${d.temp_bed_target != null ? `<div class="target">Ziel ${Math.round(Number(d.temp_bed_target))} °C</div>` : ''}</div>`);
+          ${d.temp_bed_target != null ? `<div class="target">Goal ${Math.round(Number(d.temp_bed_target))} °C</div>` : ''}</div>`);
       }
       return rows.length ? `<div class="temps">${rows.join('')}</div>` : '';
     }

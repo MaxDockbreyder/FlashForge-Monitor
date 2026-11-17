@@ -1,145 +1,64 @@
-# FlashForge Monitor 🖨
+# FlashForge Monitor
 
-A real-time web dashboard for monitoring FlashForge AD5X and AD5M 3D printers on your local network.
-
-![Dashboard Preview](https://img.shields.io/badge/status-active-brightgreen) ![Python](https://img.shields.io/badge/python-3.8%2B-blue) ![Flask](https://img.shields.io/badge/flask-3.x-lightgrey)
+A local web dashboard for monitoring FlashForge printers on your network. Configure printers in the dashboard; no edits to `server.py` are needed.
 
 ## Features
 
-- Live print progress with animated progress bar
-- Model thumbnail preview (if embedded in G-code)
-- Live camera feed per printer (expandable panel, MJPEG stream)
-- Nozzle and bed temperatures (current & goal)
-- Elapsed and estimated remaining print time
-- Current layer / total layers
-- Printer status badge (Printing / Ready / Paused / Error / Offline)
-- Auto-refresh every 30 seconds
-- Responsive layout for desktop and mobile
-  <img width="1919" height="1079" alt="desktopver" src="https://github.com/user-attachments/assets/af208c10-808b-40ac-81be-edefc4ecd03c" />
+- Add printers from the **Add printer** form; configuration is saved in `printers.json` and loaded on startup.
+- Start with an empty printer list and add as many printers as needed.
+- Responsive printer cards reflow automatically as the list grows.
+- Live printer status, print progress, layer count, temperatures, elapsed and estimated remaining time.
+- G-code thumbnail previews when available.
+- Expandable MJPEG camera streams.
+- Printer LED controls and automatic status refresh every 30 seconds.
+- Input validation, unique printer IDs, and atomic JSON writes.
 
-  <img width="1170" height="2532" alt="mobilever" src="https://github.com/user-attachments/assets/48fec6c2-b5da-4029-a40a-a7e388b4710a" />
 ## Requirements
 
-- Python 3.8+
-- FlashForge AD5X and/or AD5M connected to your local network
-- **LAN Mode enabled** on each printer (required for API access)
-- Printer serial number and check code (Printer ID)
+- Python 3.8 or newer
+- FlashForge printer on the same local network with LAN Mode enabled
+- Printer IP address, serial number, and LAN check code
 
-## Installation
+## Setup
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/MaxDockbreyder/flashforge-monitor.git
-   cd flashforge-monitor
-   ```
-
-2. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Enable LAN Mode on each printer**
-
-   On the printer touchscreen:
-   > Settings → Network → LAN Mode → Enable
-
-   > LAN Mode must be on or the dashboard cannot connect. The Check Code / Printer ID is also only visible once LAN Mode is enabled.
-
-4. **Configure your printers** in `server.py`
-   ```python
-   PRINTERS = [
-       {
-           "id":         "ad5x",
-           "name":       "AD5X",
-           "ip":         "192.168.1.100",     # Your printer's IP address
-           "serial":     "SNXXXXXXXXXX",      # Serial number
-           "check_code": "XXXXXXXX",          # 8-digit Printer ID
-           "camera_url": "http://192.168.1.100:8080/?action=stream",  # Remove line if no camera
-       },
-       ...
-   ]
-   ```
-
-5. **Run the server**
-   ```bash
-   python server.py
-   ```
-
-6. **Open your browser** at [http://localhost:5000](http://localhost:5000)
-
-## Finding Your Printer Credentials
-
-| Field | Where to find it |
-|-------|-----------------|
-| **IP address** | Router admin page, or printer display → Settings → Network |
-| **Serial number** | Printer display → Settings → Device Info |
-| **Check code / Printer ID** | Printer display → Settings → Device Info (8-digit number, only visible with LAN Mode on) |
-
-All three values are also visible in the **Flash Studio** app under printer details.
-
-## Camera Support
-
-The dashboard supports MJPEG camera streams (e.g. FlashForge built-in cameras or any IP camera with an HTTP stream URL).
-
-- Click the **▾ Camera** bar at the bottom of a printer card to expand the live feed
-- Click again to collapse and stop the stream (saves bandwidth)
-- Use **"Open fullscreen ↗"** to view the raw stream in a new tab
-- Remove the `camera_url` key from a printer config to hide the camera button
-
-## Project Structure
-
-```
-flashforge-monitor/
-├── server.py              # Flask backend — printer polling & API
-├── requirements.txt       # Python dependencies
-├── templates/
-│   └── index.html         # Frontend dashboard
-├── static/                # Static assets (if any)
-├── .gitignore
-└── README.md
+```bash
+python -m venv .venv
 ```
 
-## Debug Endpoint
+Activate the virtual environment, then install dependencies and start the dashboard:
 
-To inspect the raw data returned by your printers, open:
-
-```
-http://localhost:5000/api/debug
-```
-
-This shows all fields including the raw progress value from the API.
-
-## How Remaining Time Is Calculated
-
-The FlashForge API does not expose remaining print time directly. The dashboard estimates it using:
-
-```
-remaining = (elapsed / progress%) × (100% - progress%)
+```bash
+python -m pip install -r requirements.txt
+python server.py
 ```
 
-The estimate becomes more accurate as the print progresses.
+Open [http://localhost:5000](http://localhost:5000), choose **Add printer**, and enter the printer details. A camera URL is optional. The dashboard writes the configuration to `printers.json`, which is kept out of version control because it contains printer credentials.
+
+Enable LAN Mode on the printer touchscreen under **Settings → Network → LAN Mode**. The serial number and check code are available in the printer's device information (the check code may only appear when LAN Mode is enabled). The printer IP can be found in network settings or your router.
+
+## API endpoints
+
+- `GET /api/status` — status for configured printers
+- `POST /api/printers` — add a printer using JSON fields `name`, `ip`, `serial`, `check_code`, and optional `camera_url`
+- `POST /api/led/<printer_id>` — set the printer LED with `{"on": true}` or `{"on": false}`
+- `GET /api/debug` — status diagnostics without thumbnail image data
 
 ## Troubleshooting
 
-| Problem | Fix |
-|---------|-----|
-| "Connection failed" | Enable LAN Mode on the printer |
-| "Unreachable" | Check the IP address in `server.py` |
-| Progress shows 0% | Check `/api/debug` for the raw value |
-| Camera not loading | Verify the stream URL opens in your browser first |
+- **Connection failed/offline:** verify the IP, serial, check code, and LAN Mode.
+- **Missing dependency:** install packages with `python -m pip install -r requirements.txt`.
+- **Camera unavailable:** verify the optional stream URL in a browser.
+- **Configuration won't save:** ensure the application directory is writable; check the server log for details.
 
-## Supported Printers
+## Project layout
 
-| Printer | Tested |
-|---------|--------|
-| FlashForge AD5M | ✅ |
-| FlashForge AD5X | ✅ |
-| Other FlashForge 5M series | Should work |
-
-## Contributing
-
-Pull requests are welcome! If you have a different FlashForge model and it works (or doesn't), feel free to open an issue.
+```text
+server.py              Flask backend and API
+templates/index.html   Dashboard and add-printer form
+printers.json          Local printer configuration (ignored by Git)
+requirements.txt       Python dependencies
+```
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT. See [LICENSE](LICENSE).

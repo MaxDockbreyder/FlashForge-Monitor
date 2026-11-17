@@ -115,7 +115,7 @@ def run_async(coro):
     return loop.run_until_complete(coro)
 
 
-async def query_printer(cfg):
+async def query_printer(cfg, load_thumbnail=True):
     result = {
         "id":                 cfg["id"],
         "name":               cfg["name"],
@@ -198,7 +198,7 @@ async def query_printer(cfg):
                     result["temp_bed_target"] = int(getattr(bed, "set", 0) or 0)
 
             # Load thumbnail
-            if result["file"]:
+            if result["file"] and load_thumbnail:
                 try:
                     thumb_bytes = await client.files.get_gcode_thumbnail(result["file"])
                     if thumb_bytes:
@@ -283,6 +283,48 @@ async def set_led(cfg, turn_on: bool) -> dict:
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
+def validate_printer_payload(data):
+    if not isinstance(data, dict):
+        return None, "Expected a JSON object"
+    values = {}
+    for key in ("name", "ip", "serial", "check_code", "camera_url"):
+        value = data.get(key, "")
+        if value is None and key == "camera_url":
+            value = ""
+        if not isinstance(value, str):
+            return None, f"Field '{key}' must be text"
+        values[key] = value.strip()
+    if not all(values[key] for key in ("name", "ip", "serial", "check_code")):
+        return None, "Name, IP address, serial number and check code are required"
+    if len(values["name"]) > 80 or len(values["serial"]) > 120 or len(values["check_code"]) > 120:
+        return None, "One or more fields are too long"
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", values["ip"]):
+        return None, "Enter a valid IP address or hostname"
+    if values["camera_url"] and (len(values["camera_url"]) > 500 or not re.fullmatch(r"https?://[^\s]+", values["camera_url"], re.IGNORECASE)):
+        return None, "Camera URL must start with http:// or https:// and be at most 500 characters"
+    printer = {key: values[key] for key in ("name", "ip", "serial", "check_code")}
+    if values["camera_url"]:
+        printer["camera_url"] = values["camera_url"]
+    return printer, None
+
+
+def unique_printer_id(name, used_ids):
+    base_id = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "printer"
+    printer_id, suffix = base_id, 2
+    while printer_id in used_ids:
+        printer_id = f"{base_id}-{suffix}"
+        suffix += 1
+    return printer_id
+
+
+def persist_printers(printers):
+    try:
+        save_printers(printers)
+    except OSError as exc:
+        app.logger.exception("Could not save printer configuration")
+        return jsonify({"error": f"Could not save printers.json: {exc}"}), 500
+    return None
+
 @app.route("/")
 def index():
     global PRINTERS
@@ -293,39 +335,107 @@ def index():
 @app.route("/api/printers", methods=["POST"])
 def api_add_printer():
     global PRINTERS
-    data = request.get_json(silent=True)
-    if not isinstance(data, dict):
-        return jsonify({"error": "Expected a JSON object"}), 400
-    name = str(data.get("name", "")).strip()
-    ip = str(data.get("ip", "")).strip()
-    serial = str(data.get("serial", "")).strip()
-    check_code = str(data.get("check_code", "")).strip()
-    camera_url = str(data.get("camera_url", "")).strip()
-    if not all((name, ip, serial, check_code)):
-        return jsonify({"error": "Name, IP address, serial number and check code are required"}), 400
-    if len(name) > 80 or len(serial) > 120 or len(check_code) > 120:
-        return jsonify({"error": "One or more fields are too long"}), 400
-    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", ip):
-        return jsonify({"error": "Enter a valid IP address or hostname"}), 400
-    if camera_url and not re.fullmatch(r"https?://[^\s]+", camera_url, re.IGNORECASE):
-        return jsonify({"error": "Camera URL must start with http:// or https://"}), 400
     PRINTERS = load_printers()
-    printer_id = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "printer"
-    base_id, suffix = printer_id, 2
-    existing = {p.get("id") for p in PRINTERS}
-    while printer_id in existing:
-        printer_id = f"{base_id}-{suffix}"
-        suffix += 1
-    printer = {"id": printer_id, "name": name, "ip": ip, "serial": serial, "check_code": check_code}
-    if camera_url:
-        printer["camera_url"] = camera_url
+    printer, error = validate_printer_payload(request.get_json(silent=True))
+    if error:
+        return jsonify({"error": error}), 400
+    printer["id"] = unique_printer_id(printer["name"], {p["id"] for p in PRINTERS})
     PRINTERS.append(printer)
-    try:
-        save_printers(PRINTERS)
-    except OSError as exc:
-        app.logger.exception("Could not save printer configuration")
-        return jsonify({"error": f"Could not save printers.json: {exc}"}), 500
+    failure = persist_printers(PRINTERS)
+    if failure:
+        return failure
     return jsonify({"success": True, "printer": {k: v for k, v in printer.items() if k not in ("serial", "check_code")}}), 201
+
+
+@app.route("/api/printers/<printer_id>", methods=["GET", "PUT", "DELETE"])
+def api_printer(printer_id):
+    global PRINTERS
+    PRINTERS = load_printers()
+    index = next((i for i, p in enumerate(PRINTERS) if p.get("id") == printer_id), None)
+    if index is None:
+        return jsonify({"error": "Printer not found"}), 404
+    if request.method == "GET":
+        return jsonify(PRINTERS[index])
+    if request.method == "DELETE":
+        del PRINTERS[index]
+        failure = persist_printers(PRINTERS)
+        if failure:
+            return failure
+        return jsonify({"success": True})
+
+    printer, error = validate_printer_payload(request.get_json(silent=True))
+    if error:
+        return jsonify({"error": error}), 400
+    printer["id"] = printer_id
+    PRINTERS[index] = printer
+    failure = persist_printers(PRINTERS)
+    if failure:
+        return failure
+    return jsonify({"success": True})
+
+
+@app.route("/api/printers/test", methods=["POST"])
+def api_test_printer():
+    printer, error = validate_printer_payload(request.get_json(silent=True))
+    if error:
+        return jsonify({"success": False, "error": error}), 400
+    printer["id"] = "connection-test"
+    result = run_async(query_printer(printer, load_thumbnail=False))
+    if result["online"]:
+        return jsonify({"success": True, "message": "Connection successful. The printer is reachable."})
+    return jsonify({"success": False, "message": result.get("error") or "The printer did not respond. Check its network and credentials."})
+
+
+@app.route("/api/printers/export", methods=["GET"])
+def api_export_printers():
+    response = jsonify(load_printers())
+    response.headers["Content-Disposition"] = 'attachment; filename="flashforge-printers.json"'
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.route("/api/printers/import", methods=["POST"])
+def api_import_printers():
+    global PRINTERS
+    data = request.get_json(silent=True)
+    if not isinstance(data, list) or len(data) > 100:
+        return jsonify({"error": "Import must be a JSON array with no more than 100 printers"}), 400
+    imported = []
+    used_ids = set()
+    for item in data:
+        printer, error = validate_printer_payload(item)
+        if error:
+            return jsonify({"error": f"Invalid printer in import: {error}"}), 400
+        requested_id = item.get("id", "")
+        if isinstance(requested_id, str) and re.fullmatch(r"[a-z0-9_-]{1,80}", requested_id) and requested_id not in used_ids:
+            printer_id = requested_id
+        else:
+            printer_id = unique_printer_id(printer["name"], used_ids)
+        printer["id"] = printer_id
+        used_ids.add(printer_id)
+        imported.append(printer)
+    PRINTERS = imported
+    failure = persist_printers(PRINTERS)
+    if failure:
+        return failure
+    return jsonify({"success": True, "count": len(PRINTERS)})
+
+
+@app.route("/api/printers/order", methods=["PUT"])
+def api_reorder_printers():
+    global PRINTERS
+    PRINTERS = load_printers()
+    data = request.get_json(silent=True)
+    ids = data.get("ids") if isinstance(data, dict) else None
+    if (not isinstance(ids, list) or any(not isinstance(item, str) for item in ids)
+            or len(ids) != len(PRINTERS) or set(ids) != {p["id"] for p in PRINTERS}):
+        return jsonify({"error": "Order must include each configured printer ID exactly once"}), 400
+    printer_by_id = {p["id"]: p for p in PRINTERS}
+    PRINTERS = [printer_by_id[printer_id] for printer_id in ids]
+    failure = persist_printers(PRINTERS)
+    if failure:
+        return failure
+    return jsonify({"success": True})
 
 
 @app.route("/api/status")

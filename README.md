@@ -5,12 +5,16 @@ A local web dashboard for monitoring FlashForge printers on your network. Config
 ## Features
 
 - Add printers from the **Add printer** form; configuration is saved in `printers.json` and loaded on startup.
+- Edit or remove printers, and test their network connection before saving.
+- Export and import a JSON backup of the printer list.
+- Drag printer cards to reorder them; the order is saved automatically.
 - Start with an empty printer list and add as many printers as needed.
 - Responsive printer cards reflow automatically as the list grows.
 - Live printer status, print progress, layer count, temperatures, elapsed and estimated remaining time.
 - G-code thumbnail previews when available.
 - Expandable MJPEG camera streams.
-- Printer LED controls and automatic status refresh every 30 seconds.
+- Printer LED controls and a configurable 10, 30, or 60 second refresh interval.
+- Clear status labels and actionable connection error messages.
 - Input validation, unique printer IDs, and atomic JSON writes.
 
 ## Requirements
@@ -34,12 +38,19 @@ python server.py
 
 Open [http://localhost:5000](http://localhost:5000), choose **Add printer**, and enter the printer details. A camera URL is optional. The dashboard writes the configuration to `printers.json`, which is kept out of version control because it contains printer credentials.
 
+Backups also contain printer credentials. Store exported backup files securely and do not commit them to GitHub.
+
 Enable LAN Mode on the printer touchscreen under **Settings → Network → LAN Mode**. The serial number and check code are available in the printer's device information (the check code may only appear when LAN Mode is enabled). The printer IP can be found in network settings or your router.
 
 ## API endpoints
 
 - `GET /api/status` — status for configured printers
 - `POST /api/printers` — add a printer using JSON fields `name`, `ip`, `serial`, `check_code`, and optional `camera_url`
+- `GET /api/printers/<printer_id>` — retrieve printer configuration for editing
+- `PUT` or `DELETE /api/printers/<printer_id>` — update or remove a printer
+- `POST /api/printers/test` — test printer connectivity without saving
+- `GET /api/printers/export` and `POST /api/printers/import` — download or restore a JSON backup
+- `PUT /api/printers/order` — save the dashboard order
 - `POST /api/led/<printer_id>` — set the printer LED with `{"on": true}` or `{"on": false}`
 - `GET /api/debug` — status diagnostics without thumbnail image data
 

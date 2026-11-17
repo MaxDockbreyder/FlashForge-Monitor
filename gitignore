@@ -4,3 +4,6 @@ __pycache__/
 venv/
 .env
 .DS_Store
+# Printer credentials are stored here; keep them out of version control.
+printers.json
+/upstream-review/

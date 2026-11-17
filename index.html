@@ -62,6 +62,8 @@
   .header-right {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 1rem;
   }
 
@@ -87,9 +89,18 @@
   }
 
   .add-btn { background: var(--accent-blue); border-color: var(--accent-blue); color: white; }
+  .refresh-select { background: #1c1c1c; border: 1px solid var(--border-light); color: var(--text-primary); border-radius: 4px; padding: .38rem .5rem; font: inherit; }
+  .card[draggable="true"] { cursor: grab; }
+  .card.dragging { opacity: .45; }
+  .card-actions { display: flex; gap: .4rem; margin-top: .7rem; }
+  .card-actions button { background: #1c1c1c; border: 1px solid var(--border-light); color: var(--text-secondary); padding: .25rem .5rem; border-radius: 3px; font-size: .68rem; cursor: pointer; }
+  .card-actions button:hover { color: var(--text-primary); }
+  .form-message { min-height: 1.2rem; margin-top: .35rem; font-size: .75rem; color: var(--text-secondary); }
+  .form-message.success { color: #4ade80; }
+  .form-message.failure { color: #f87171; }
   .modal { position: fixed; inset: 0; z-index: 10; display: none; align-items: center; justify-content: center; padding: 1rem; background: rgba(0,0,0,.72); }
   .modal.open { display: flex; }
-  .modal-panel { width: min(100%, 440px); padding: 1.4rem; border: 1px solid var(--border-light); border-radius: 8px; background: var(--card-bg); }
+  .modal-panel { width: min(100%, 500px); max-height: calc(100vh - 2rem); overflow-y: auto; padding: 1.4rem; border: 1px solid var(--border-light); border-radius: 8px; background: var(--card-bg); }
   .modal-panel h2 { margin-bottom: 1rem; font-size: 1rem; }
   .form-field { display: block; margin: .8rem 0; color: var(--text-secondary); font-size: .75rem; }
   .form-field input { display: block; width: 100%; margin-top: .35rem; padding: .65rem; border: 1px solid var(--border-light); border-radius: 4px; background: #111; color: var(--text-primary); font: inherit; }
@@ -178,6 +189,8 @@
   .status-dot.green {
     background: var(--dot-green);
   }
+  .status-dot.red { background: #ef4444; }
+  .status-dot.amber { background: #f59e0b; }
 
   /* Thumbnail Banner */
   .thumb-banner {
@@ -400,8 +413,15 @@
     </div>
     <div class="header-right">
       <span class="refresh-text">Refresh in <span id="countdown">30</span> s</span>
+      <label class="refresh-text" for="refreshRate">Interval</label>
+      <select class="refresh-select" id="refreshRate" aria-label="Refresh interval">
+        <option value="10">10 seconds</option><option value="30" selected>30 seconds</option><option value="60">60 seconds</option>
+      </select>
       <button class="refresh-btn" onclick="refresh()">Refresh</button>
-    <button class="refresh-btn add-btn" onclick="openAddForm()">+ Add printer</button>
+      <button class="refresh-btn" onclick="exportPrinters()">Export backup</button>
+      <button class="refresh-btn" onclick="document.getElementById('importFile').click()">Import backup</button>
+      <input id="importFile" type="file" accept="application/json,.json" hidden>
+      <button class="refresh-btn add-btn" onclick="openAddForm()">+ Add printer</button>
     </div>
   </header>
 
@@ -410,7 +430,7 @@
     <div class="empty-state">No printers configured yet. Choose <strong>“Add printer”</strong> to set up your first printer.</div>
     {% endif %}
     {% for p in printers %}
-    <div class="card" id="card-{{ p.id }}">
+    <div class="card" id="card-{{ p.id }}" data-printer-id="{{ p.id }}" draggable="true" title="Drag to reorder">
 
       <div class="card-top">
         <div class="card-header">
@@ -428,6 +448,12 @@
         </div>
       </div>
 
+      <div class="card-actions">
+        <button type="button" onclick="editPrinter('{{ p.id }}')">Edit</button>
+        <button type="button" onclick="deletePrinter('{{ p.id }}')">Delete</button>
+        <span class="refresh-text">Drag card to reorder</span>
+      </div>
+
       <div id="thumb-{{ p.id }}"></div>
 
       <div class="card-body" id="body-{{ p.id }}">
@@ -436,7 +462,7 @@
 
       {% if p.camera_url %}
       <div id="camSection-{{ p.id }}">
-        <div class="camera-bar" onclick="toggleCamera('{{ p.id }}', '{{ p.camera_url }}', '{{ p.name }}')">
+        <div class="camera-bar" data-camera-url="{{ p.camera_url }}" data-printer-name="{{ p.name }}" onclick="toggleCamera('{{ p.id }}', this.dataset.cameraUrl, this.dataset.printerName)">
           <span>Camera</span>
           <span id="camToggleText-{{ p.id }}">Open +</span>
         </div>
@@ -463,29 +489,50 @@
     <label class="form-field">Check code<input name="check_code" required autocomplete="off"></label>
     <label class="form-field">Camera URL (optional)<input name="camera_url" type="url" placeholder="http://192.168.1.100:8080/?action=stream"></label>
     <div class="form-error" id="formError" role="alert"></div>
-    <div class="form-actions"><button class="refresh-btn" type="button" onclick="closeAddForm()">Cancel</button><button class="refresh-btn add-btn" type="submit">Save printer</button></div>
+    <div class="form-message" id="testMessage" role="status" aria-live="polite"></div>
+    <div class="form-actions"><button class="refresh-btn" type="button" onclick="closeAddForm()">Cancel</button><button class="refresh-btn" id="testConnectionBtn" type="button" onclick="testConnection()">Test connection</button><button class="refresh-btn add-btn" id="savePrinterBtn" type="submit">Save printer</button></div>
   </form>
 </div>
 
 <script>
 let countdown = 30;
 let timer;
+const savedRefreshInterval = Number(localStorage.getItem('refreshInterval'));
+let refreshInterval = [10, 30, 60].includes(savedRefreshInterval) ? savedRefreshInterval : 30;
+let editingPrinterId = null;
+let refreshing = false;
 const ledStates = {};
 const camOpen = {};
 
-function openAddForm() { document.getElementById('addModal').classList.add('open'); document.querySelector('#printerForm [name="name"]').focus(); }
+const form = document.getElementById('printerForm');
+const formFields = ['name', 'ip', 'serial', 'check_code', 'camera_url'];
+function openAddForm() {
+  editingPrinterId = null;
+  form.reset();
+  document.getElementById('formTitle').textContent = 'Add a printer';
+  document.getElementById('savePrinterBtn').textContent = 'Save printer';
+  document.getElementById('formError').textContent = '';
+  showTestMessage('', '');
+  document.getElementById('addModal').classList.add('open');
+  document.querySelector('#printerForm [name="name"]').focus();
+}
 function closeAddForm() { document.getElementById('addModal').classList.remove('open'); }
+function showTestMessage(message, type) {
+  const element = document.getElementById('testMessage');
+  element.textContent = message;
+  element.className = 'form-message' + (type ? ' ' + type : '');
+}
 document.getElementById('addModal').addEventListener('click', event => { if (event.target.id === 'addModal') closeAddForm(); });
 document.addEventListener('keydown', event => { if (event.key === 'Escape') closeAddForm(); });
-document.getElementById('printerForm').addEventListener('submit', async event => {
+form.addEventListener('submit', async event => {
   event.preventDefault();
-  const form = event.currentTarget;
-  const button = form.querySelector('[type="submit"]');
+  const button = document.getElementById('savePrinterBtn');
   const error = document.getElementById('formError');
   error.textContent = '';
   button.disabled = true;
   try {
-    const response = await fetch('/api/printers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+    const url = editingPrinterId ? `/api/printers/${encodeURIComponent(editingPrinterId)}` : '/api/printers';
+    const response = await fetch(url, { method: editingPrinterId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.fromEntries(new FormData(form))) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Could not save printer.');
     closeAddForm();
@@ -493,6 +540,118 @@ document.getElementById('printerForm').addEventListener('submit', async event =>
   } catch (err) {
     error.textContent = err.message || 'Could not connect to the server.';
   } finally { button.disabled = false; }
+});
+
+async function editPrinter(id) {
+  openAddForm();
+  editingPrinterId = id;
+  document.getElementById('formTitle').textContent = 'Edit printer';
+  const saveButton = document.getElementById('savePrinterBtn');
+  saveButton.textContent = 'Save changes';
+  saveButton.disabled = true;
+  try {
+    const response = await fetch(`/api/printers/${encodeURIComponent(id)}`);
+    const printer = await response.json();
+    if (!response.ok) throw new Error(printer.error || 'Could not load printer details.');
+    formFields.forEach(field => { form.elements[field].value = printer[field] || ''; });
+  } catch (error) {
+    document.getElementById('formError').textContent = error.message;
+  } finally {
+    saveButton.disabled = false;
+  }
+}
+
+async function testConnection() {
+  const button = document.getElementById('testConnectionBtn');
+  button.disabled = true;
+  showTestMessage('Testing connection…', '');
+  try {
+    const response = await fetch('/api/printers/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Could not test connection.');
+    showTestMessage(result.message, result.success ? 'success' : 'failure');
+  } catch (error) {
+    showTestMessage(error.message || 'Could not connect to the server.', 'failure');
+  } finally { button.disabled = false; }
+}
+
+async function deletePrinter(id) {
+  const name = document.querySelector(`#card-${CSS.escape(id)} .printer-name`)?.textContent || 'this printer';
+  if (!window.confirm(`Delete printer “${name}”? This removes its saved configuration.`)) return;
+  try {
+    const response = await fetch(`/api/printers/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Could not delete printer.');
+    window.location.reload();
+  } catch (error) { window.alert(error.message || 'Could not connect to the server.'); }
+}
+
+async function exportPrinters() {
+  try {
+    const response = await fetch('/api/printers/export');
+    if (!response.ok) throw new Error('Could not create backup.');
+    const blob = await response.blob();
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'flashforge-printers.json';
+    link.click();
+    URL.revokeObjectURL(link.href);
+  } catch (error) { window.alert(error.message); }
+}
+
+document.getElementById('importFile').addEventListener('change', async event => {
+  const file = event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (!Array.isArray(data)) throw new Error('Backup must contain a JSON array.');
+    if (!window.confirm(`Import ${data.length} printer(s)? This replaces the current printer list.`)) return;
+    const response = await fetch('/api/printers/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Could not import backup.');
+    window.location.reload();
+  } catch (error) { window.alert(error.message || 'Could not read backup file.'); }
+});
+
+const refreshSelect = document.getElementById('refreshRate');
+refreshSelect.value = String(refreshInterval);
+refreshSelect.addEventListener('change', () => {
+  refreshInterval = Number(refreshSelect.value);
+  localStorage.setItem('refreshInterval', String(refreshInterval));
+  refresh();
+});
+
+const printerGrid = document.getElementById('grid');
+let draggedCard = null;
+printerGrid.addEventListener('dragstart', event => {
+  draggedCard = event.target.closest('.card[draggable="true"]');
+  if (!draggedCard) return;
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', draggedCard.dataset.printerId);
+  requestAnimationFrame(() => draggedCard.classList.add('dragging'));
+});
+printerGrid.addEventListener('dragover', event => {
+  if (!draggedCard) return;
+  event.preventDefault();
+  const target = event.target.closest('.card[draggable="true"]');
+  if (!target || target === draggedCard) return;
+  const rect = target.getBoundingClientRect();
+  const after = event.clientY > rect.top + rect.height / 2;
+  printerGrid.insertBefore(draggedCard, after ? target.nextSibling : target);
+});
+printerGrid.addEventListener('dragend', async () => {
+  if (!draggedCard) return;
+  draggedCard.classList.remove('dragging');
+  draggedCard = null;
+  const ids = Array.from(printerGrid.querySelectorAll('.card[data-printer-id]')).map(card => card.dataset.printerId);
+  try {
+    const response = await fetch('/api/printers/order', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) });
+    if (!response.ok) throw new Error('Could not save printer order.');
+  } catch (error) {
+    window.alert(error.message);
+    window.location.reload();
+  }
 });
 
 function escapeHtml(value) {
@@ -557,11 +716,23 @@ function toggleCamera(id, url, name) {
 
 function parseState(stateStr) {
   const s = (stateStr || '').toLowerCase();
+  if (s.includes('error') || s.includes('fault') || s.includes('alarm')) return { dot: 'red', text: '• error' };
   if (s.includes('print') || s.includes('building')) return { dot: 'green', text: '• printing' };
   if (s.includes('finish') || s.includes('complete')) return { dot: 'green', text: '• completed' };
   if (s.includes('idle') || s.includes('ready')) return { dot: 'green', text: '• ready' };
-  if (s.includes('pause')) return { dot: 'green', text: '• paused' };
-  return { dot: '', text: '• ' + (stateStr || 'offline') };
+  if (s.includes('pause')) return { dot: 'amber', text: '• paused' };
+  if (s.includes('offline') || !s) return { dot: '', text: '• offline' };
+  return { dot: 'amber', text: '• ' + stateStr };
+}
+
+function friendlyConnectionError(error, ip) {
+  const message = String(error || 'Printer is offline.');
+  const lower = message.toLowerCase();
+  if (lower.includes('connection refused')) return `Connection refused by ${ip}. Check the printer IP and LAN Mode.`;
+  if (lower.includes('timeout') || lower.includes('timed out')) return `Connection to ${ip} timed out. Check the network and printer status.`;
+  if (lower.includes('flashforge-python-api missing') || lower.includes('missing dependency')) return 'FlashForge API dependency is missing. Install packages from requirements.txt.';
+  if (lower.includes('connection failed')) return `Could not connect to ${ip}. Check LAN Mode and the printer credentials.`;
+  return message;
 }
 
 function renderCard(d) {
@@ -573,13 +744,13 @@ function renderCard(d) {
 
   if (d.error || !d.online) {
     pill.querySelector('.status-dot').className = 'status-dot';
-    statusText.textContent = '• offline';
-    ledBtn.disabled = true;
+    statusText.textContent = d.error ? '• connection issue' : '• offline';
+    if (ledBtn) ledBtn.disabled = true;
     thumb.innerHTML = '';
     body.textContent = '';
     const message = document.createElement('div');
     message.className = 'offline-msg';
-    message.textContent = d.error || 'Printer offline';
+    message.textContent = d.error ? friendlyConnectionError(d.error, d.ip) : 'Printer offline. Check the printer network connection.';
     body.appendChild(message);
     return;
   }
@@ -647,6 +818,8 @@ function renderCard(d) {
 
 async function refresh() {
   resetTimer();
+  if (refreshing) return;
+  refreshing = true;
   try {
     const res = await fetch('/api/status');
     if (!res.ok) throw new Error(`Status request failed (${res.status})`);
@@ -657,12 +830,14 @@ async function refresh() {
     document.getElementById('lastUpdate').textContent = now.toTimeString().split(' ')[0];
   } catch (e) {
     console.error('Fetch error:', e);
+  } finally {
+    refreshing = false;
   }
 }
 
 function resetTimer() {
   clearInterval(timer);
-  countdown = 30;
+  countdown = refreshInterval;
   document.getElementById('countdown').textContent = countdown;
   timer = setInterval(() => {
     countdown--;

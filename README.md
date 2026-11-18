@@ -17,6 +17,12 @@ A local web dashboard for monitoring FlashForge printers on your network. Config
 - Clear status labels and actionable connection error messages.
 - Input validation, unique printer IDs, and atomic JSON writes.
 
+## Preview
+<img width="1919" height="1079" alt="dashboard-preview" src="https://github.com/user-attachments/assets/5dd96edd-18a5-497b-a24c-f666316f83a4" />
+<img width="1919" height="1079" alt="add-printer-preview" src="https://github.com/user-attachments/assets/7b97d736-f848-477a-8512-51decea51c6f" />
+
+
+
 ## Requirements
 
 - Python 3.8 or newer

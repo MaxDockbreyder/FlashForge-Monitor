@@ -702,12 +702,26 @@ function toggleCamera(id, url, name) {
     camContainer.className = 'camera-container';
     camContainer.innerHTML = `
       <div class="camera-stream">
-        <img src="${escapeHtml(url)}" alt="${escapeHtml(name)} stream" onerror="this.parentNode.innerHTML='<div class=\"offline-msg\">Camera stream unavailable</div>'">
+        <img alt="${escapeHtml(name)} stream">
         <div class="camera-overlay">
           <span>${escapeHtml(name)} - Live feed</span>
           <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open in new tab ↗</a>
         </div>
       </div>`;
+    const image = camContainer.querySelector('.camera-stream img');
+    let frameLoaded = false;
+    const unavailableTimer = setTimeout(() => {
+      if (frameLoaded || image.naturalWidth > 0) return;
+      const message = document.createElement('div');
+      message.className = 'offline-msg';
+      message.textContent = 'Camera stream unavailable';
+      image.parentElement.replaceChildren(message);
+    }, 10000);
+    image.addEventListener('load', () => {
+      frameLoaded = true;
+      clearTimeout(unavailableTimer);
+    }, { once: true });
+    image.src = url;
     section.insertBefore(camContainer, section.firstChild);
     toggleText.textContent = 'Close -';
     camOpen[id] = true;
